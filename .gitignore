@@ -1,0 +1,19 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+.vs/
+*.user
+*.suo
+
+# Model weights and local settings
+/models/
+*.onnx
+*.ort
+settings.local.json
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

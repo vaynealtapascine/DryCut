@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <LangVersion>latest</LangVersion>
+    <IsTestProject Condition="'$(IsTestProject)' == ''">false</IsTestProject>
+  </PropertyGroup>
+</Project>
