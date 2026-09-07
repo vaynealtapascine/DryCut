@@ -2,9 +2,12 @@
   <PropertyGroup>
     <AssemblyName>BackgroundCut.Desktop</AssemblyName>
     <RootNamespace>BackgroundCut.Desktop</RootNamespace>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationIcon />
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\BackgroundCut.Application\BackgroundCut.Application.csproj" />
