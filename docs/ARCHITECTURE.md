@@ -22,7 +22,7 @@ BackgroundCut is a local-first desktop utility that removes image backgrounds wi
 - **UI:** WPF on .NET 8 (`net8.0-windows`), MVVM without a framework.
 - **Inference:** Microsoft ONNX Runtime DirectML with automatic CPU fallback.
 - **Image processing:** SixLabors.ImageSharp for decode/resize/mask/composition/PNG output; WPF imaging only at the UI boundary.
-- **Settings:** versioned JSON under `%LocalAppData%\BackgroundCut\settings.json`.
+- **Settings:** versioned JSON under `%LocalAppData%\BackgroundCut\settings.json`; processed-image history under `%LocalAppData%\BackgroundCut\history`.
 - **Models:** bundled IS-Net q8 (Apache-2.0); optional BiRefNet FP16 (MIT upstream, downloaded after explicit user action).
 - **Installer:** Inno Setup, per-user by default, producing one signed-ready `.exe`; includes application, .NET runtime, default model, licenses, and optional Explorer integration task.
 - **Tests:** xUnit for core/application logic plus a deterministic fake inference service; smoke test against the real ONNX model.
@@ -39,11 +39,11 @@ BackgroundCut.Domain
 
 BackgroundCut.Application
   Use cases and ports: process image, export, settings, model catalog,
-  context-menu management. Depends only on Domain.
+  context-menu management, and processed-image history contracts. Depends only on Domain.
 
 BackgroundCut.Infrastructure
   ONNX inference, ImageSharp processing, filesystem, clipboard bridge,
-  registry integration, JSON settings, model download/checksum.
+  registry integration, JSON settings, model download/checksum, and atomic PNG/metadata history storage.
   Implements Application ports.
 
 BackgroundCut.Desktop
@@ -68,8 +68,9 @@ Dependencies point inward. Domain is dependency-free. Application cannot referen
    - normalizes/resizes the alpha mask;
    - applies optional edge refinement;
    - composes an RGBA image at the original dimensions.
-5. The result is retained in memory for preview, clipboard, and export.
-6. The selected export policy determines the destination; generated names never overwrite existing files.
+5. The result is retained in memory for preview, clipboard, and export, then persisted as a transparent PNG with metadata in the local history folder.
+6. History metadata can be enumerated newest-first without reading image pixels. The desktop gallery may load only its first 100 entries for rendering and loads full-resolution PNG data on demand.
+7. The selected export policy determines the destination; generated names never overwrite existing files.
 
 ## 5. Model profiles
 
@@ -141,8 +142,9 @@ One process owns a named mutex. Later launches send the canonical path over a na
 - Bound image dimensions and decoded pixel count to prevent accidental memory exhaustion; show a useful message.
 - Cancellation is cooperative between phases; inference itself may complete before cancellation is observed.
 - Use atomic temp-file + move for model downloads and settings writes.
+- Persist each successful transparent result as an atomic PNG plus metadata pair; retain history for 30 days.
 - Verify model length and SHA-256 before loading.
-- Do not log image content or paths by default.
+- Do not log image content or paths by default; history metadata stores only the original display filename, not the source path.
 
 ## 11. Security and privacy
 

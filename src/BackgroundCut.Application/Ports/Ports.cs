@@ -28,6 +28,34 @@ public interface IClipboardService
     Task CopyAsync(ProcessedImage image, CancellationToken cancellationToken);
 }
 
+public interface IProcessedImageHistoryStore
+{
+    /// <summary>Saves one processed image and metadata without retaining its source path.</summary>
+    Task<ProcessedImageHistoryItem> SaveAsync(
+        ProcessedImage image,
+        string originalFileName,
+        DateTimeOffset processedAtUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Returns metadata only, newest first; no PNG pixels are loaded.</summary>
+    Task<IReadOnlyList<ProcessedImageHistoryItem>> EnumerateMetadataAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Loads one stored PNG, or null when its artifact is unavailable or invalid.</summary>
+    Task<ProcessedImage?> LoadAsync(ProcessedImageHistoryItem item, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes one item and its persisted artifacts. Missing artifacts are ignored.</summary>
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes items strictly older than the retention boundary.</summary>
+    Task<int> CleanupAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
+}
+
+public static class ProcessedImageHistoryPolicy
+{
+    public const int GalleryPreviewLimit = 100;
+    public static TimeSpan Retention => TimeSpan.FromDays(30);
+}
+
 public interface IExplorerIntegration
 {
     Task<bool> IsEnabledAsync(CancellationToken cancellationToken);

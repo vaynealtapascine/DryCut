@@ -22,6 +22,7 @@ This document is the execution contract for the first complete Windows build.
 - [ ] Attempt DirectML, with deterministic CPU fallback and readable diagnostics.
 - [ ] Implement uncertain-band edge refinement presets.
 - [ ] Implement atomic JSON settings and collision-safe exports.
+- [ ] Implement atomic processed-image history PNG/metadata storage, newest-first metadata enumeration, on-demand loads, deletion, and 30-day cleanup.
 - [ ] Implement checksum-verified resumable model download.
 - [ ] Implement clipboard and HKCU Explorer context-menu adapters.
 - [ ] Add real-model smoke test and synthetic mask/refinement tests.
