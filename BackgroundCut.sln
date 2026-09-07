@@ -19,6 +19,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C8E82D23
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackgroundCut.Desktop.Tests", "tests\BackgroundCut.Desktop.Tests\BackgroundCut.Desktop.Tests.csproj", "{9D892E0E-5913-4540-8ECA-A7FFB43C5037}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackgroundCut.Infrastructure.Tests", "tests\BackgroundCut.Infrastructure.Tests\BackgroundCut.Infrastructure.Tests.csproj", "{7DD40130-57A5-425F-B407-BE96AD7257F0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -53,8 +55,13 @@ Global
 		{9D892E0E-5913-4540-8ECA-A7FFB43C5037}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9D892E0E-5913-4540-8ECA-A7FFB43C5037}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9D892E0E-5913-4540-8ECA-A7FFB43C5037}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7DD40130-57A5-425F-B407-BE96AD7257F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7DD40130-57A5-425F-B407-BE96AD7257F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7DD40130-57A5-425F-B407-BE96AD7257F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7DD40130-57A5-425F-B407-BE96AD7257F0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{9D892E0E-5913-4540-8ECA-A7FFB43C5037} = {C8E82D23-9FCA-43C4-A3B9-8883A5DAE5FD}
+		{7DD40130-57A5-425F-B407-BE96AD7257F0} = {C8E82D23-9FCA-43C4-A3B9-8883A5DAE5FD}
 	EndGlobalSection
 EndGlobal

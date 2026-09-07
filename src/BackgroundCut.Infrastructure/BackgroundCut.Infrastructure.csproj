@@ -6,4 +6,9 @@
   <ItemGroup>
     <ProjectReference Include="..\BackgroundCut.Application\BackgroundCut.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
+  </ItemGroup>
 </Project>
