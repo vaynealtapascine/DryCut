@@ -11,7 +11,7 @@ public sealed record Choice<T>(T Value, string Name);
 
 public interface IFileDialogService
 {
-    string? PickImage();
+    IReadOnlyList<string> PickImages();
     string? PickSavePath(string suggestedName);
     string? PickFolder(string? currentFolder);
 }
@@ -19,7 +19,7 @@ public interface IFileDialogService
 public interface IPreviewBitmapFactory
 {
     BitmapSource FromRgba(ProcessedImage image);
-    BitmapSource? FromFile(string path);
+    BitmapSource? FromFile(string path, int decodePixelWidth = 0);
 }
 
 public interface IDesktopServices

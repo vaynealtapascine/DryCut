@@ -14,16 +14,16 @@ namespace BackgroundCut.Desktop;
 
 internal sealed class WpfFileDialogs : Ui.IFileDialogService
 {
-    public string? PickImage()
+    public IReadOnlyList<string> PickImages()
     {
         var dialog = new WpfOpenFileDialog
         {
             Filter = "Images|*.jpg;*.jpeg;*.png;*.webp;*.bmp;*.tif;*.tiff",
             Title = "Choose an image",
             CheckFileExists = true,
-            Multiselect = false
+            Multiselect = true
         };
-        return dialog.ShowDialog() == true ? dialog.FileName : null;
+        return dialog.ShowDialog() == true ? dialog.FileNames : Array.Empty<string>();
     }
 
     public string? PickSavePath(string suggestedName)
@@ -53,7 +53,7 @@ internal sealed class WpfFileDialogs : Ui.IFileDialogService
 
 internal sealed class WpfPreviewBitmapFactory : Ui.IPreviewBitmapFactory
 {
-    public BitmapSource? FromFile(string path)
+    public BitmapSource? FromFile(string path, int decodePixelWidth = 0)
     {
         try
         {
@@ -62,6 +62,7 @@ internal sealed class WpfPreviewBitmapFactory : Ui.IPreviewBitmapFactory
             image.UriSource = new Uri(path);
             image.CacheOption = BitmapCacheOption.OnLoad;
             image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            if (decodePixelWidth > 0) image.DecodePixelWidth = decodePixelWidth;
             image.EndInit();
             image.Freeze();
             return image;

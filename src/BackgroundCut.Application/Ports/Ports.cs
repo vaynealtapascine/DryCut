@@ -43,6 +43,9 @@ public interface IProcessedImageHistoryStore
     /// <summary>Loads one stored PNG, or null when its artifact is unavailable or invalid.</summary>
     Task<ProcessedImage?> LoadAsync(ProcessedImageHistoryItem item, CancellationToken cancellationToken = default);
 
+    /// <summary>Resolves the local PNG artifact for preview without decoding it.</summary>
+    string? GetImagePath(ProcessedImageHistoryItem item);
+
     /// <summary>Deletes one item and its persisted artifacts. Missing artifacts are ignored.</summary>
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 

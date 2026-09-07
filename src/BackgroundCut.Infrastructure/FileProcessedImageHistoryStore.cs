@@ -131,6 +131,13 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         }
     }
 
+    public string? GetImagePath(ProcessedImageHistoryItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        var path = TryResolvePngPath(item);
+        return path is not null && File.Exists(path) ? path : null;
+    }
+
     public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

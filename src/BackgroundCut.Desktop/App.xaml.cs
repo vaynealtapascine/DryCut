@@ -49,13 +49,15 @@ public partial class App : System.Windows.Application, IDisposable
         var executablePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "BackgroundCut.Desktop.exe");
         var explorer = new WindowsExplorerIntegration(executablePath);
         var services = new DesktopServices(settings, catalog, downloader, explorer);
+        var history = new FileProcessedImageHistoryStore();
         _engine = new OnnxBackgroundRemovalEngine();
         _viewModel = new MainViewModel(
             new RemoveBackgroundUseCase(_engine, catalog),
             new ExportImageUseCase(new PngExportService(), settings),
             new WpfClipboardService(),
             settings,
-            services);
+            services,
+            history);
 
         var window = new MainWindow { DataContext = _viewModel };
         MainWindow = window;
