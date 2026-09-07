@@ -28,6 +28,7 @@ function Copy-VerifiedArtifact([string]$Source, [string]$Destination, [string]$E
 }
 
 if ($DryRun) {
+    Write-Host "DRY RUN: dotnet test $(Join-Path $repo 'BackgroundCut.sln') --configuration Release"
     & (Join-Path $PSScriptRoot 'publish-win-x64.ps1') -Version $Version -DryRun
     if ($DefaultModelPath) { Write-Host "DRY RUN: would verify and copy the supplied default model." }
     else { & (Join-Path $PSScriptRoot 'download-model.ps1') -DryRun }
@@ -48,6 +49,9 @@ Copy-Item (Join-Path $repo 'LICENSE') (Join-Path $staging 'LICENSE.txt') -Force
 Copy-Item (Join-Path $repo 'README.md') (Join-Path $staging 'README.md') -Force
 Copy-Item (Join-Path $repo 'docs\USER_GUIDE.txt') (Join-Path $staging 'USER_GUIDE.txt') -Force
 Copy-Item (Join-Path $repo 'licenses') (Join-Path $staging 'licenses') -Recurse -Force
+
+dotnet test (Join-Path $repo 'BackgroundCut.sln') --configuration Release
+if ($LASTEXITCODE -ne 0) { throw 'Release tests failed.' }
 
 & (Join-Path $PSScriptRoot 'publish-win-x64.ps1') -PublishDir (Join-Path $staging 'app') -Version $Version
 if ($LASTEXITCODE -ne 0) { throw 'Publish step failed.' }
