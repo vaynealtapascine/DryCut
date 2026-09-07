@@ -8,9 +8,15 @@ namespace BackgroundCut.Infrastructure;
 
 public sealed class ImageSharpImageService
 {
+    private const long MaximumPixels = 100_000_000;
+
     public static async Task<DecodedImage> DecodeAsync(string path, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var info = await Image.IdentifyAsync(path, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidDataException("The selected file is not a readable image.");
+        if ((long)info.Width * info.Height > MaximumPixels)
+            throw new InvalidDataException("This image is too large to process safely. Use an image smaller than 100 megapixels.");
         await using var stream = File.OpenRead(path);
         using var image = await Image.LoadAsync<Rgba32>(stream, cancellationToken).ConfigureAwait(false);
         image.Mutate(context => context.AutoOrient());

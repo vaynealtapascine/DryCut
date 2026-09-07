@@ -1,3 +1,62 @@
-<Window x:Class="BackgroundCut.Desktop.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="BackgroundCut settings" Width="560" Height="520" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Background="#F6F8FB">
- <StackPanel Margin="28"><TextBlock Text="Settings" FontSize="26" FontWeight="SemiBold"/><TextBlock Text="Choose sensible defaults. You can change these at any time." Foreground="#51606F" Margin="0,6,0,24"/><TextBlock Text="When I save" FontWeight="SemiBold"/><ComboBox ItemsSource="{Binding Policies}" SelectedItem="{Binding Policy}" Margin="0,8,0,4"/><TextBlock Text="{Binding PolicyDescription}" Foreground="#51606F"/><TextBlock Text="Default folder" FontWeight="SemiBold" Margin="0,22,0,8"/><DockPanel><Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseCommand}"/><TextBox Text="{Binding Folder, UpdateSourceTrigger=PropertyChanged}" Padding="8"/></DockPanel><Separator Margin="0,24"/><TextBlock Text="Models" FontWeight="SemiBold"/><TextBlock Text="Fast &amp; accurate is included. Highest quality can be added when model management is connected." TextWrapping="Wrap" Foreground="#51606F" Margin="0,8,0,0"/><Button Content="Manage models…" IsEnabled="False" HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Model download is provided by Infrastructure."/><CheckBox Content="Add “Remove background” to Explorer's image menu" IsEnabled="False" Margin="0,18,0,0"/><TextBlock Text="Explorer integration will be enabled by the installer/Infrastructure adapter." FontSize="12" Foreground="#51606F" TextWrapping="Wrap" Margin="0,5,0,0"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,28,0,0"><Button Content="Cancel" Command="{Binding CancelCommand}"/><Button Content="Save settings" Command="{Binding SaveCommand}" IsDefault="True" Background="#2563EB" Foreground="White"/></StackPanel></StackPanel>
+<Window x:Class="BackgroundCut.Desktop.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BackgroundCut settings"
+        Width="620" Height="650" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        Background="#F6F8FB"
+        ShowInTaskbar="False">
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Settings" FontSize="26" FontWeight="SemiBold"/>
+            <TextBlock Text="Choose sensible defaults. You can change these at any time."
+                       Foreground="#51606F" Margin="0,6,0,24"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="When I save" FontWeight="SemiBold"/>
+                <ComboBox ItemsSource="{Binding PolicyChoices}"
+                          SelectedValue="{Binding Policy}"
+                          SelectedValuePath="Value"
+                          DisplayMemberPath="Name"
+                          Margin="0,8,0,4"/>
+                <TextBlock Text="{Binding PolicyDescription}" Foreground="#51606F"/>
+
+                <TextBlock Text="Default folder" FontWeight="SemiBold" Margin="0,22,0,8"/>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseCommand}"/>
+                    <TextBox Text="{Binding Folder, UpdateSourceTrigger=PropertyChanged}" Padding="9" VerticalContentAlignment="Center"/>
+                </DockPanel>
+
+                <Separator Margin="0,24"/>
+                <TextBlock Text="Quality models" FontWeight="SemiBold"/>
+                <TextBlock Text="Fast &amp; accurate is included and works offline. For difficult hair, fur, and busy backgrounds, add the stronger model."
+                           TextWrapping="Wrap" Foreground="#51606F" Margin="0,8,0,12"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Download highest quality (467 MB)" Command="{Binding DownloadModelCommand}"/>
+                    <Button Content="Remove download" Command="{Binding RemoveModelCommand}"/>
+                </StackPanel>
+                <ProgressBar Height="8" Margin="4,10,4,6" Maximum="1" Value="{Binding DownloadProgress, Mode=OneWay}"/>
+                <TextBlock Text="{Binding ModelStatus}" TextWrapping="Wrap" Foreground="#51606F" Margin="4,0"/>
+
+                <Separator Margin="0,24"/>
+                <CheckBox Content="Add “Remove background with BackgroundCut” to Explorer's image menu"
+                          IsChecked="{Binding ExplorerEnabled}"/>
+                <TextBlock Text="This adds or removes a per-user Windows menu entry. It does not need administrator access."
+                           FontSize="12" Foreground="#51606F" TextWrapping="Wrap" Margin="24,6,0,0"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+            <Button Content="Cancel" Command="{Binding CancelCommand}"/>
+            <Button Content="Save settings" Command="{Binding SaveCommand}" IsDefault="True" Style="{StaticResource PrimaryButton}"/>
+        </StackPanel>
+    </Grid>
 </Window>

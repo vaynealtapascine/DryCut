@@ -1,9 +1,8 @@
-using Xunit;
-
 using BackgroundCut.Application.Ports;
 using BackgroundCut.Application.UseCases;
-using BackgroundCut.Domain.Models;
 using BackgroundCut.Desktop.Ui;
+using BackgroundCut.Domain.Models;
+using Xunit;
 
 namespace BackgroundCut.Desktop.Tests;
 
@@ -13,7 +12,7 @@ public sealed class MainViewModelTests
     public void UnsupportedDropEntersErrorStateWithoutStartingEngine()
     {
         var engine = new FakeEngine();
-        var vm = new MainViewModel(new RemoveBackgroundUseCase(engine, new Catalog()), new ExportImageUseCase(new Exporter(), new Settings()), new Clipboard(), new Catalog(), new Desktop());
+        var vm = new MainViewModel(new RemoveBackgroundUseCase(engine, new Catalog()), new ExportImageUseCase(new Exporter(), new Settings()), new Clipboard(), new Settings(), new Desktop());
         vm.DropPath("C:/images/photo.gif");
         Assert.True(vm.HasError);
         Assert.False(engine.Started);
@@ -23,7 +22,7 @@ public sealed class MainViewModelTests
     [Fact]
     public void DefaultsUseApproachableQualityCopy()
     {
-        var vm = new MainViewModel(new RemoveBackgroundUseCase(new FakeEngine(), new Catalog()), new ExportImageUseCase(new Exporter(), new Settings()), new Clipboard(), new Catalog(), new Desktop());
+        var vm = new MainViewModel(new RemoveBackgroundUseCase(new FakeEngine(), new Catalog()), new ExportImageUseCase(new Exporter(), new Settings()), new Clipboard(), new Settings(), new Desktop());
         Assert.Equal(ModelKind.FastAndAccurate, vm.Model);
         Assert.Equal(RefinementPreset.Balanced, vm.Refinement);
         Assert.Contains("recommended", vm.ModelDescription);

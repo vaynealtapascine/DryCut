@@ -1,18 +1,139 @@
-<Window x:Class="BackgroundCut.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="BackgroundCut" MinWidth="1024" MinHeight="680" Width="1180" Height="760" Background="#F6F8FB" UseLayoutRounding="True" SnapsToDevicePixels="True" AllowDrop="True" Drop="OnDrop" DragOver="OnDragOver">
- <Window.InputBindings><KeyBinding Key="O" Modifiers="Control" Command="{Binding ChooseImageCommand}"/><KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}"/><KeyBinding Key="N" Modifiers="Control" Command="{Binding NewImageCommand}"/><KeyBinding Key="Escape" Command="{Binding CancelCommand}"/></Window.InputBindings>
- <DockPanel Margin="32">
-  <Grid DockPanel.Dock="Top" Margin="0,0,0,24"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="BackgroundCut" FontSize="28" FontWeight="SemiBold"/><TextBlock Text="Remove image backgrounds privately, right on your PC." Margin="0,4,0,0" Foreground="#51606F"/></StackPanel><Button Grid.Column="1" Content="Settings" Command="{Binding SettingsCommand}" ToolTip="Open settings (Alt+S)"/></Grid>
-  <Grid>
-   <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-   <Border Grid.Row="0" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="18" Background="White" Padding="28" AllowDrop="True">
-    <Grid>
-     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}"><TextBlock Text="Drop an image here" FontSize="32" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="JPG, PNG, WebP, BMP, or TIFF" FontSize="16" Foreground="#51606F" Margin="0,10,0,20" HorizontalAlignment="Center"/><Button Content="Choose image" Command="{Binding ChooseImageCommand}" IsDefault="True"/></StackPanel>
-     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}"><TextBlock Text="Working on it…" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center"/><ProgressBar Width="360" Height="10" Margin="0,24,0,12" Value="{Binding Progress}" Maximum="1"/><TextBlock Text="{Binding Status}" HorizontalAlignment="Center" Foreground="#51606F"/><Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,20,0,0"/></StackPanel>
-     <StackPanel Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="Something went wrong" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="{Binding Status}" TextWrapping="Wrap" MaxWidth="520" Margin="0,12" HorizontalAlignment="Center"/><Button Content="Try again" Command="{Binding RetryCommand}" HorizontalAlignment="Center"/></StackPanel>
-     <Grid Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition Width="240"/></Grid.ColumnDefinitions><StackPanel Grid.Column="0" Margin="0,0,12,0"><TextBlock Text="Before" FontWeight="SemiBold" Margin="0,0,0,8"/><Border Background="#E9EEF3" CornerRadius="10" Padding="8"><Image Source="{Binding Before}" Stretch="Uniform"/></Border></StackPanel><StackPanel Grid.Column="1" Margin="12,0"><TextBlock Text="After · transparent" FontWeight="SemiBold" Margin="0,0,0,8"/><Border CornerRadius="10" Padding="8"><Border.Background><DrawingBrush TileMode="Tile" Viewport="0,0,16,16" ViewportUnits="Absolute"><DrawingBrush.Drawing><DrawingGroup><GeometryDrawing Brush="White"><GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,16,16"/></GeometryDrawing.Geometry></GeometryDrawing><GeometryDrawing Brush="#DCE3EA"><GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,8,8"/></GeometryDrawing.Geometry></GeometryDrawing><GeometryDrawing Brush="#DCE3EA"><GeometryDrawing.Geometry><RectangleGeometry Rect="8,8,8,8"/></GeometryDrawing.Geometry></GeometryDrawing></DrawingGroup></DrawingBrush.Drawing></DrawingBrush></Border.Background><Image Source="{Binding After}" Stretch="Uniform"/></Border></StackPanel><StackPanel Grid.Column="2" Margin="20,22,0,0"><TextBlock Text="Quality" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Model" Margin="0,18,0,4"/><ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding Model}"/><TextBlock Text="{Binding ModelDescription}" TextWrapping="Wrap" Foreground="#51606F" Margin="0,5,0,14"/><TextBlock Text="Edge detail" Margin="0,4,0,4"/><ComboBox ItemsSource="{Binding Refinements}" SelectedItem="{Binding Refinement}"/><TextBlock Text="{Binding RefinementDescription}" TextWrapping="Wrap" Foreground="#51606F" Margin="0,5,0,20"/></StackPanel></Grid>
+<Window x:Class="BackgroundCut.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BackgroundCut"
+        MinWidth="1024" MinHeight="680" Width="1180" Height="760"
+        Background="#F6F8FB"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        AllowDrop="True" Drop="OnDrop" DragOver="OnDragOver">
+    <Window.InputBindings>
+        <KeyBinding Key="O" Modifiers="Control" Command="{Binding ChooseImageCommand}"/>
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}"/>
+        <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewImageCommand}"/>
+        <KeyBinding Key="Escape" Command="{Binding CancelCommand}"/>
+    </Window.InputBindings>
+
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="BackgroundCut" FontSize="30" FontWeight="SemiBold"/>
+                <TextBlock Text="Remove backgrounds privately, right on your PC."
+                           Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}"/>
+            </StackPanel>
+            <Button Grid.Column="1" Content="Settings" Command="{Binding SettingsCommand}" ToolTip="Output, models, and Explorer menu"/>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="280"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="18" Background="White" Padding="26">
+                <Grid>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Drop an image here" FontSize="32" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                        <TextBlock Text="or choose one from your PC" FontSize="17" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,4" HorizontalAlignment="Center"/>
+                        <TextBlock Text="JPG, PNG, WebP, BMP, or TIFF" FontSize="13" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,20" HorizontalAlignment="Center"/>
+                        <Button Content="Choose image" Command="{Binding ChooseImageCommand}" IsDefault="True" Style="{StaticResource PrimaryButton}"/>
+                    </StackPanel>
+
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Working on it…" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                        <ProgressBar Width="380" Height="10" Margin="0,24,0,12" Value="{Binding Progress, Mode=OneWay}" Maximum="1"/>
+                        <TextBlock Text="{Binding Status}" HorizontalAlignment="Center" Foreground="{StaticResource MutedBrush}"/>
+                        <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,20,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="Something went wrong" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" MaxWidth="560" Margin="0,12" TextAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Content="Try again" Command="{Binding RetryCommand}" Style="{StaticResource PrimaryButton}"/>
+                            <Button Content="Open Settings" Command="{Binding SettingsCommand}"/>
+                            <Button Content="Choose another image" Command="{Binding ChooseImageCommand}"/>
+                        </StackPanel>
+                        <Expander Header="Technical details" Margin="0,16,0,0" MaxWidth="620"
+                                  Visibility="{Binding ErrorDetails, Converter={StaticResource StringToVisibility}}">
+                            <TextBox Text="{Binding ErrorDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="180"/>
+                        </Expander>
+                    </StackPanel>
+
+                    <Grid Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="Before" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <Border Background="#E9EEF3" CornerRadius="10" Padding="8">
+                                <Image Source="{Binding Before}" Stretch="Uniform"/>
+                            </Border>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                            <TextBlock Text="After · transparent" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <Border CornerRadius="10" Padding="8">
+                                <Border.Background>
+                                    <DrawingBrush TileMode="Tile" Viewport="0,0,16,16" ViewportUnits="Absolute">
+                                        <DrawingBrush.Drawing>
+                                            <DrawingGroup>
+                                                <GeometryDrawing Brush="White"><GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,16,16"/></GeometryDrawing.Geometry></GeometryDrawing>
+                                                <GeometryDrawing Brush="#DCE3EA"><GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,8,8"/></GeometryDrawing.Geometry></GeometryDrawing>
+                                                <GeometryDrawing Brush="#DCE3EA"><GeometryDrawing.Geometry><RectangleGeometry Rect="8,8,8,8"/></GeometryDrawing.Geometry></GeometryDrawing>
+                                            </DrawingGroup>
+                                        </DrawingBrush.Drawing>
+                                    </DrawingBrush>
+                                </Border.Background>
+                                <Image Source="{Binding After}" Stretch="Uniform"/>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Margin="20,0,0,0" Padding="20" Background="White" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="18">
+                <StackPanel IsEnabled="{Binding CanAdjustQuality}">
+                    <TextBlock Text="Quality" FontSize="19" FontWeight="SemiBold"/>
+                    <TextBlock Text="Model" Margin="0,20,0,6" FontWeight="SemiBold"/>
+                    <ComboBox ItemsSource="{Binding ModelChoices}" SelectedValue="{Binding Model}"
+                              SelectedValuePath="Value" DisplayMemberPath="Name"/>
+                    <TextBlock Text="{Binding ModelDescription}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,16"/>
+                    <TextBlock Text="Edge detail" Margin="0,4,0,6" FontWeight="SemiBold"/>
+                    <ComboBox ItemsSource="{Binding RefinementChoices}" SelectedValue="{Binding Refinement}"
+                              SelectedValuePath="Value" DisplayMemberPath="Name"/>
+                    <TextBlock Text="{Binding RefinementDescription}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,18"/>
+                    <Button Content="Apply quality changes" Command="{Binding ApplyQualityCommand}"
+                            Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Text="You can change these after seeing the result." FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="4,10,4,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Status}" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="New image" Command="{Binding NewImageCommand}"/>
+                <Button Content="Copy" Command="{Binding CopyCommand}"/>
+                <Button Content="Save" Command="{Binding SaveCommand}"/>
+                <Button Content="Save as…" Command="{Binding SaveAsCommand}" Style="{StaticResource PrimaryButton}"/>
+            </StackPanel>
+        </Grid>
     </Grid>
-   </Border>
-   <Grid Grid.Row="1" Margin="0,20,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Status}" VerticalAlignment="Center" Foreground="#51606F"/><StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="New image" Command="{Binding NewImageCommand}"/><Button Content="Copy" Command="{Binding CopyCommand}"/><Button Content="Save" Command="{Binding SaveCommand}" IsDefault="True"/><Button Content="Save as…" Command="{Binding SaveAsCommand}" Background="#2563EB" Foreground="White"/></StackPanel></Grid>
-  </Grid>
- </DockPanel>
 </Window>

@@ -7,10 +7,13 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <ApplicationIcon />
+    <ApplicationIcon>..\..\assets\BackgroundCut.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\BackgroundCut.Application\BackgroundCut.Application.csproj" />
     <ProjectReference Include="..\BackgroundCut.Infrastructure\BackgroundCut.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\..\assets\BackgroundCut.ico" Link="BackgroundCut.ico" />
   </ItemGroup>
 </Project>

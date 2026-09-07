@@ -40,11 +40,17 @@ public sealed class ExportImageUseCase
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
     }
 
-    public async Task<ExportedFile> ExecuteAsync(ProcessedImage image, string? sourceFolder = null, string? requestedPath = null, CancellationToken cancellationToken = default)
+    public async Task<ExportedFile> ExecuteAsync(
+        ProcessedImage image,
+        string? sourceFolder = null,
+        string? requestedPath = null,
+        string? suggestedFileName = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(image);
         var settings = await _settings.LoadExportSettingsAsync(cancellationToken).ConfigureAwait(false);
-        var request = new ExportRequest(settings.Policy, settings.DefaultFolder, sourceFolder, requestedPath);
+        var policy = requestedPath is null ? settings.Policy : ExportPolicy.AskEveryTime;
+        var request = new ExportRequest(policy, settings.DefaultFolder, sourceFolder, requestedPath, suggestedFileName);
         return await _export.ExportAsync(image, request, cancellationToken).ConfigureAwait(false);
     }
 }

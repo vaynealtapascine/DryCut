@@ -36,5 +36,10 @@ public interface IExplorerIntegration
 }
 
 public sealed record ProcessingProgress(string Stage, double Fraction);
-public sealed record ExportRequest(ExportPolicy Policy, string? DefaultFolder, string? SourceFolder, string? RequestedPath = null);
+public sealed record ExportRequest(
+    ExportPolicy Policy,
+    string? DefaultFolder,
+    string? SourceFolder,
+    string? RequestedPath = null,
+    string? SuggestedFileName = null);
 public sealed record ExportedFile(string Path);

@@ -65,6 +65,8 @@ public sealed record ProcessedImage
         Pixels = pixels ?? throw new ArgumentNullException(nameof(pixels));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (pixels.Length != checked(width * height * 4))
+            throw new ArgumentException("RGBA pixels must contain exactly width * height * 4 bytes.", nameof(pixels));
         Width = width;
         Height = height;
     }

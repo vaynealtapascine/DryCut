@@ -40,7 +40,7 @@ public sealed class ApplicationTests
         var settings = new FakeSettings(new ExportSettings(ExportPolicy.SourceFolder, "C:/default"));
         var useCase = new ExportImageUseCase(exporter, settings);
 
-        var image = new ProcessedImage(new byte[] { 1 }, 1, 1);
+        var image = new ProcessedImage(new byte[] { 1, 2, 3, 4 }, 1, 1);
         var result = await useCase.ExecuteAsync(image, "C:/source", cancellationToken: CancellationToken.None);
 
         Assert.Equal("C:/source/photo.png", result.Path);
@@ -59,7 +59,7 @@ public sealed class ApplicationTests
         public ImageInput? Input { get; private set; }
         public ModelDescriptor? Model { get; private set; }
         public RefinementSettings? Refinement { get; private set; }
-        public ProcessedImage Result { get; } = new(new byte[] { 7 }, 2, 2);
+        public ProcessedImage Result { get; } = new(new byte[16], 2, 2);
         public Task<ProcessedImage> ProcessAsync(ImageInput input, ModelDescriptor model, RefinementSettings refinement, IProgress<ProcessingProgress>? progress, CancellationToken cancellationToken)
         { Input = input; Model = model; Refinement = refinement; return Task.FromResult(Result); }
     }

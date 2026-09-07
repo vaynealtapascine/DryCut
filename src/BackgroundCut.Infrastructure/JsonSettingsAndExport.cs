@@ -56,12 +56,18 @@ public sealed class PngExportService : IExportService
         ArgumentNullException.ThrowIfNull(request);
         var folder = request.Policy switch
         {
-            ExportPolicy.DefaultFolder => request.DefaultFolder,
+            ExportPolicy.DefaultFolder => string.IsNullOrWhiteSpace(request.DefaultFolder)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "BackgroundCut")
+                : request.DefaultFolder,
             ExportPolicy.SourceFolder => request.SourceFolder,
             ExportPolicy.AskEveryTime => Path.GetDirectoryName(request.RequestedPath),
             _ => throw new ArgumentOutOfRangeException(nameof(request), request.Policy, "Unknown export policy.")
         };
-        var requestedName = request.RequestedPath is null ? "image-background-removed.png" : Path.GetFileName(request.RequestedPath);
+        var requestedName = request.RequestedPath is not null
+            ? Path.GetFileName(request.RequestedPath)
+            : string.IsNullOrWhiteSpace(request.SuggestedFileName)
+                ? "image-background-removed.png"
+                : Path.GetFileName(request.SuggestedFileName);
         if (string.IsNullOrWhiteSpace(folder) || (request.Policy == ExportPolicy.AskEveryTime && string.IsNullOrWhiteSpace(request.RequestedPath)))
             throw new InvalidOperationException("An export destination is required.");
         Directory.CreateDirectory(folder);

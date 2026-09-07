@@ -21,25 +21,25 @@ public static class EdgeRefinement
 
         var original = alpha.ToArray();
         for (var y = 0; y < height; y++)
-        for (var x = 0; x < width; x++)
-        {
-            var index = y * width + x;
-            if (original[index] is <= 0.05f or >= 0.95f) continue;
-            var sum = 0f;
-            var weight = 0f;
-            for (var oy = -radius; oy <= radius; oy++)
-            for (var ox = -radius; ox <= radius; ox++)
+            for (var x = 0; x < width; x++)
             {
-                var nx = Math.Clamp(x + ox, 0, width - 1);
-                var ny = Math.Clamp(y + oy, 0, height - 1);
-                var neighbour = ny * width + nx;
-                var colorDistance = ColorDistance(rgba, index, neighbour);
-                var w = 1f / (1f + colorDistance * (settings.Preset == RefinementPreset.Detailed ? 2f : 1f));
-                sum += original[neighbour] * w;
-                weight += w;
+                var index = y * width + x;
+                if (original[index] is <= 0.05f or >= 0.95f) continue;
+                var sum = 0f;
+                var weight = 0f;
+                for (var oy = -radius; oy <= radius; oy++)
+                    for (var ox = -radius; ox <= radius; ox++)
+                    {
+                        var nx = Math.Clamp(x + ox, 0, width - 1);
+                        var ny = Math.Clamp(y + oy, 0, height - 1);
+                        var neighbour = ny * width + nx;
+                        var colorDistance = ColorDistance(rgba, index, neighbour);
+                        var w = 1f / (1f + colorDistance * (settings.Preset == RefinementPreset.Detailed ? 2f : 1f));
+                        sum += original[neighbour] * w;
+                        weight += w;
+                    }
+                alpha[index] = Math.Clamp(sum / weight, 0f, 1f);
             }
-            alpha[index] = Math.Clamp(sum / weight, 0f, 1f);
-        }
     }
 
     private static float ColorDistance(ReadOnlySpan<byte> rgba, int first, int second)
