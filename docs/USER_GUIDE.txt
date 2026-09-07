@@ -1,0 +1,65 @@
+BACKGROUNDCUT USER GUIDE
+========================
+
+WHAT IT DOES
+------------
+BackgroundCut removes image backgrounds on your Windows PC. Processing is local: your images are not uploaded. The original file is never changed.
+
+OPEN AN IMAGE
+-------------
+- Drag an image onto the BackgroundCut window, or select "Choose image".
+- Supported formats: PNG, JPEG, WebP, BMP, TIFF, and GIF.
+- You can also right-click an image in Explorer after enabling the optional context-menu item in Settings. On Windows 11, the item may appear under "Show more options".
+
+IMPROVE A RESULT
+----------------
+Model:
+- Fast & accurate: included and recommended for most images.
+- Highest quality: a larger optional download intended for hair, fur, fine structures, and busy backgrounds.
+
+Edge detail:
+- None: keep the model mask unchanged.
+- Balanced: light cleanup for general use.
+- Smooth: soften rough edges.
+- Detailed: spend more time preserving fine edge detail.
+
+After changing a choice, select "Apply quality changes".
+
+EXPORT
+------
+- Copy: places transparent PNG data and a compatible bitmap on the Windows clipboard.
+- Save: uses the behavior chosen in Settings.
+- Save as: always asks for a location.
+
+Settings offers three Save behaviors:
+- My BackgroundCut folder: Pictures\BackgroundCut by default.
+- Beside the original image.
+- Ask every time.
+
+Results are PNG files so transparency is preserved. If a name is already used, BackgroundCut adds a number rather than overwriting it.
+
+EXPLORER CONTEXT MENU
+---------------------
+Open Settings, scroll to the Explorer option, enable it, and save. This is a per-user setting and does not need administrator access. Disable the same option to remove it.
+
+OPTIONAL STRONG MODEL
+---------------------
+Open Settings and select "Download highest quality". The download is approximately 467 MB. BackgroundCut checks a pinned SHA-256 hash before installing it. A partial or invalid download is deleted.
+
+PRIVACY
+-------
+- Image decoding, model inference, edge cleanup, previewing, copying, and saving happen locally.
+- The only network feature is the explicit optional-model download.
+- Settings are stored under %LOCALAPPDATA%\BackgroundCut.
+
+TROUBLESHOOTING
+---------------
+- If the app says the included model is missing, reinstall or fully extract the portable ZIP.
+- If the stronger model cannot download, check the internet connection and try again. The fast model still works offline.
+- If a result is poor, try Highest quality and Detailed edge cleanup.
+- If copying does not preserve transparency in a particular program, use Save as and import the PNG.
+- Unsigned builds may trigger Windows SmartScreen. Verify the installer checksum from the release notes before running it.
+
+UNINSTALL
+---------
+Use Windows Settings > Apps > Installed apps > BackgroundCut > Uninstall. The uninstaller removes installed files and the Explorer menu entry. Your exported images are left alone.

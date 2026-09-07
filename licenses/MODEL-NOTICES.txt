@@ -1,0 +1,20 @@
+BackgroundCut model notices
+===========================
+
+IS-Net general-use q8
+---------------------
+Model/paper: X. Qin et al., "Highly Accurate Dichotomous Image Segmentation", ECCV 2022.
+ONNX redistribution: https://huggingface.co/SacredNoir/isnet-general-use-onnx
+Original project: https://github.com/xuebinqin/DIS
+License: Apache License 2.0. The full license is included as Apache-2.0.txt.
+Pinned artifact SHA-256: feed6f32a5e707ca7e939576b2d891b23fb9eb4114749657a5efc64e8651e43a
+
+BiRefNet ONNX (optional download)
+--------------------------------
+Model/paper: Peng Zheng et al., "Bilateral Reference for High-Resolution Dichotomous Image Segmentation", CAAI Artificial Intelligence Research, 2024.
+ONNX redistribution: https://huggingface.co/onnx-community/BiRefNet-ONNX
+Original project: https://github.com/ZhengPeng7/BiRefNet
+License metadata: MIT.
+Pinned artifact SHA-256: 3654c741eb80bd926ada8fed1713b506ccf8d30eb1f6487e87eb9f234f33df09
+
+The optional BiRefNet artifact is not included in the standard package. It is downloaded only when the user requests it in Settings.
