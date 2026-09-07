@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>BackgroundCut.Desktop</AssemblyName>
+    <RootNamespace>BackgroundCut.Desktop</RootNamespace>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BackgroundCut.Application\BackgroundCut.Application.csproj" />
+    <ProjectReference Include="..\BackgroundCut.Infrastructure\BackgroundCut.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

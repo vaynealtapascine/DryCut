@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackgroundCut.Domain", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackgroundCut.Application", "src\BackgroundCut.Application\BackgroundCut.Application.csproj", "{22222222-2222-4222-8222-222222222222}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackgroundCut.Infrastructure", "src\BackgroundCut.Infrastructure\BackgroundCut.Infrastructure.csproj", "{55555555-5555-4555-8555-555555555555}"
+EndProject
+Project("{60DC8134-9B46-4B2D-8CDC-4B64C7A9C8D0}") = "BackgroundCut.Desktop", "src\BackgroundCut.Desktop\BackgroundCut.Desktop.csproj", "{66666666-6666-4666-8666-666666666666}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackgroundCut.Domain.Tests", "tests\BackgroundCut.Domain.Tests\BackgroundCut.Domain.Tests.csproj", "{33333333-3333-4333-8333-333333333333}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackgroundCut.Application.Tests", "tests\BackgroundCut.Application.Tests\BackgroundCut.Application.Tests.csproj", "{44444444-4444-4444-8444-444444444444}"
@@ -25,6 +29,14 @@ Global
 		{22222222-2222-4222-8222-222222222222}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{22222222-2222-4222-8222-222222222222}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{22222222-2222-4222-8222-222222222222}.Release|Any CPU.Build.0 = Release|Any CPU
+		{55555555-5555-4555-8555-555555555555}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55555555-5555-4555-8555-555555555555}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55555555-5555-4555-8555-555555555555}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55555555-5555-4555-8555-555555555555}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66666666-6666-4666-8666-666666666666}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66666666-6666-4666-8666-666666666666}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66666666-6666-4666-8666-666666666666}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66666666-6666-4666-8666-666666666666}.Release|Any CPU.Build.0 = Release|Any CPU
 		{33333333-3333-4333-8333-333333333333}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{33333333-3333-4333-8333-333333333333}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{33333333-3333-4333-8333-333333333333}.Release|Any CPU.ActiveCfg = Release|Any CPU

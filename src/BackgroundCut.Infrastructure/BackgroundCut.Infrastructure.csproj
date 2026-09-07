@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>BackgroundCut.Infrastructure</AssemblyName>
+    <RootNamespace>BackgroundCut.Infrastructure</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BackgroundCut.Application\BackgroundCut.Application.csproj" />
+  </ItemGroup>
+</Project>
