@@ -21,6 +21,7 @@ public sealed class QueueItemViewModel : ObservableObject
     private string _status;
     private string _errorDetails = "";
     private BitmapSource? _thumbnail;
+    private bool _isSelected;
 
     private QueueItemViewModel(
         Guid id,
@@ -69,6 +70,7 @@ public sealed class QueueItemViewModel : ObservableObject
     public string Status { get => _status; private set => Set(ref _status, value); }
     public string ErrorDetails { get => _errorDetails; private set => Set(ref _errorDetails, value); }
     public BitmapSource? Thumbnail { get => _thumbnail; internal set => Set(ref _thumbnail, value); }
+    public bool IsSelected { get => _isSelected; internal set => Set(ref _isSelected, value); }
 
     public bool IsWaiting => State == QueueItemState.Waiting;
     public bool IsProcessing => State == QueueItemState.Processing;

@@ -82,7 +82,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _selectedItem;
         private set
         {
+            if (ReferenceEquals(_selectedItem, value)) return;
+            if (_selectedItem is not null) _selectedItem.IsSelected = false;
             if (!Set(ref _selectedItem, value)) return;
+            if (_selectedItem is not null) _selectedItem.IsSelected = true;
             Raise(nameof(FileName));
             RefreshViewState();
         }
@@ -281,6 +284,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private async Task ProcessQueueAsync()
     {
+        var hadFailures = false;
         try
         {
             while (!_disposed && _pending.Count > 0)
@@ -351,6 +355,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 }
                 catch (OperationCanceledException)
                 {
+                    hadFailures = true;
                     _activeStopwatch.Stop();
                     _eta.CancelActive();
                     item.MarkCancelled();
@@ -359,6 +364,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 }
                 catch (InvalidOperationException exception) when (exception.Message.Contains("model is not installed", StringComparison.OrdinalIgnoreCase))
                 {
+                    hadFailures = true;
                     _activeStopwatch.Stop();
                     _eta.FailActive();
                     item.MarkFailed("Highest quality needs a one-time download. Open Settings, download it, then try again.", exception);
@@ -366,6 +372,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 }
                 catch (Exception exception)
                 {
+                    hadFailures = true;
                     _activeStopwatch.Stop();
                     _eta.FailActive();
                     item.MarkFailed("We couldn't remove the background. Try this image again or choose another one.", exception);
@@ -385,6 +392,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         finally
         {
             _queueTask = null;
+            if (!_disposed)
+                Status = hadFailures ? "Queue finished. Some images need attention." : "All queued images are ready.";
             RefreshQueueState();
         }
     }

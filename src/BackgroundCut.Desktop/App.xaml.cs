@@ -13,19 +13,12 @@ public partial class App : System.Windows.Application, IDisposable
     private OnnxBackgroundRemovalEngine? _engine;
     private HttpClient? _httpClient;
     private MainViewModel? _viewModel;
+    private bool _handlingDispatcherException;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        DispatcherUnhandledException += (_, args) =>
-        {
-            System.Windows.MessageBox.Show(
-                "BackgroundCut ran into an unexpected problem. Your original image was not changed.\n\n" + args.Exception.Message,
-                "BackgroundCut",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            args.Handled = true;
-        };
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
 
         _instance = new SingleInstanceCoordinator();
         var requested = e.Args.Length == 1 ? e.Args[0] : null;
@@ -72,6 +65,35 @@ public partial class App : System.Windows.Application, IDisposable
         });
         window.Show();
         if (requested is not null) _viewModel.DropPath(requested);
+    }
+
+    private void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs args)
+    {
+        Console.Error.WriteLine(args.Exception);
+        if (_handlingDispatcherException)
+        {
+            args.Handled = false;
+            return;
+        }
+
+        _handlingDispatcherException = true;
+        try
+        {
+            System.Windows.MessageBox.Show(
+                "BackgroundCut ran into an unexpected problem. Your original image was not changed.\n\n" + args.Exception.Message,
+                "BackgroundCut",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            args.Handled = true;
+        }
+        catch
+        {
+            args.Handled = false;
+        }
+        finally
+        {
+            _handlingDispatcherException = false;
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
