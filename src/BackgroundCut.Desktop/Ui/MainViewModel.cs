@@ -18,15 +18,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly ISettingsStore _settings;
     private readonly IDesktopServices _desktop;
     private readonly IProcessedImageHistoryStore? _history;
-    private readonly QueueEtaEstimator _eta = new(minimumSamples: 1);
+    private readonly Dictionary<ProcessingProfile, QueueEtaEstimator> _etaByProfile = [];
     private readonly Queue<QueueItemViewModel> _pending = new();
     private readonly List<QueueItemViewModel> _allItems = [];
     private readonly DispatcherTimer _etaTimer;
+    private readonly DispatcherTimer _retentionTimer;
     private readonly Stopwatch _activeStopwatch = new();
 
     private CancellationTokenSource? _activeCancellation;
     private Task? _queueTask;
     private QueueItemViewModel? _activeItem;
+    private QueueEtaEstimator? _activeEta;
     private QueueItemViewModel? _selectedItem;
     private ProcessedImage? _selectedResult;
     private string _status = "Drop images here, or choose images to begin.";
@@ -38,7 +40,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool _standaloneError;
     private bool _initialized;
     private bool _disposed;
+    private bool _retentionCleanupRunning;
     private int _selectionVersion;
+    private int _galleryPage;
 
     public MainViewModel(
         RemoveBackgroundUseCase remove,
@@ -67,12 +71,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectQueueItemCommand = new AsyncCommand(parameter => SelectItemAsync(parameter as QueueItemViewModel), parameter => parameter is QueueItemViewModel);
         CopyQueueItemCommand = new AsyncCommand(parameter => CopyItemAsync(parameter as QueueItemViewModel), parameter => parameter is QueueItemViewModel item && item.CanCopy);
         DeleteQueueItemCommand = new AsyncCommand(parameter => DeleteItemAsync(parameter as QueueItemViewModel), parameter => parameter is QueueItemViewModel item && item.CanDelete);
+        ShowNewerItemsCommand = new RelayCommand(_ => ChangeGalleryPage(-1), _ => HasNewerItems);
+        ShowOlderItemsCommand = new RelayCommand(_ => ChangeGalleryPage(1), _ => HasOlderItems);
 
         _etaTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(1)
         };
         _etaTimer.Tick += OnEtaTick;
+
+        _retentionTimer = new DispatcherTimer(DispatcherPriority.ApplicationIdle)
+        {
+            Interval = TimeSpan.FromHours(1)
+        };
+        _retentionTimer.Tick += OnRetentionTick;
     }
 
     public ObservableCollection<QueueItemViewModel> VisibleItems { get; } = [];
@@ -91,11 +103,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public bool IsEmpty => SelectedItem is null;
+    public bool IsEmpty => SelectedItem is null && !_standaloneError;
     public bool IsWorking => _activeItem is not null;
     public bool ShowProcessing => SelectedItem?.State is QueueItemState.Waiting or QueueItemState.Processing;
     public bool HasResult => SelectedItem?.IsCompleted == true;
-    public bool HasError => _standaloneError || SelectedItem?.HasFailed == true;
+    public bool HasError => SelectedItem?.HasFailed == true || (_standaloneError && SelectedItem is null);
     public bool HasBefore => Before is not null;
     public bool CanAdjustQuality => !_disposed;
     public bool CanReprocessSelected => SelectedItem?.SourcePath is string path && File.Exists(path);
@@ -109,16 +121,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public int TotalItemCount => _allItems.Count;
     public int HiddenItemCount => Math.Max(0, TotalItemCount - VisibleItems.Count);
     public bool HasHiddenItems => HiddenItemCount > 0;
-    public string QueueEtaText => QueueCount == 0 ? "All caught up" : _eta.Current.DisplayText;
+    public bool HasNewerItems => QueueCount == 0 && _galleryPage > 0;
+    public bool HasOlderItems => QueueCount == 0 && (_galleryPage + 1) * ProcessedImageHistoryPolicy.GalleryPreviewLimit < GalleryItemCount;
+    public string QueueEtaText => FormatQueueEta();
     public string QueueSummary => QueueCount switch
     {
         0 => "Queue is clear",
         1 => $"1 image left · {QueueEtaText}",
         _ => $"{QueueCount} images left · {QueueEtaText}"
     };
-    public string GallerySummary => HiddenItemCount > 0
-        ? $"Showing 100 of {TotalItemCount} items · {HiddenItemCount} stored off-screen"
-        : $"{TotalItemCount} {(TotalItemCount == 1 ? "item" : "items")}";
+    public string GallerySummary => QueueCount > 0
+        ? $"{TotalItemCount} items · {QueueCount} queued"
+        : GalleryItemCount > ProcessedImageHistoryPolicy.GalleryPreviewLimit
+            ? $"Showing {GalleryPageStart}–{GalleryPageEnd} of {GalleryItemCount} items"
+            : $"{GalleryItemCount} {(GalleryItemCount == 1 ? "item" : "items")}";
     public string RetentionNotice { get; } = "Processed images stay here for 30 days, then are deleted unless you save them manually.";
 
     public string ModelDescription => Model == ModelKind.FastAndAccurate
@@ -181,6 +197,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public AsyncCommand SelectQueueItemCommand { get; }
     public AsyncCommand CopyQueueItemCommand { get; }
     public AsyncCommand DeleteQueueItemCommand { get; }
+    public RelayCommand ShowNewerItemsCommand { get; }
+    public RelayCommand ShowOlderItemsCommand { get; }
 
     public async Task InitializeAsync()
     {
@@ -193,7 +211,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             var history = await _history.EnumerateMetadataAsync(CancellationToken.None);
             foreach (var metadata in history)
             {
-                if (_allItems.Any(item => item.Id == metadata.Id)) continue;
+                if (_allItems.Any(item => item.Id == metadata.Id || item.HistoryItem?.Id == metadata.Id)) continue;
                 _allItems.Add(QueueItemViewModel.FromHistory(metadata));
             }
             RefreshVisibleItems();
@@ -204,6 +222,53 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         catch
         {
             // History is supplementary. An unavailable folder must not prevent processing new work.
+        }
+        finally
+        {
+            _retentionTimer.Start();
+        }
+    }
+
+    public async Task RefreshRetentionAsync()
+    {
+        if (_history is null || _retentionCleanupRunning || _disposed) return;
+        _retentionCleanupRunning = true;
+        try
+        {
+            var deleted = await _history.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None);
+            if (deleted == 0) return;
+
+            var retained = await _history.EnumerateMetadataAsync(CancellationToken.None);
+            var retainedIds = retained.Select(item => item.Id).ToHashSet();
+            var expired = _allItems
+                .Where(item => item.HistoryItem is not null && !retainedIds.Contains(item.HistoryItem.Id))
+                .ToArray();
+            if (expired.Length == 0) return;
+
+            var selectionExpired = SelectedItem is not null && expired.Contains(SelectedItem);
+            foreach (var item in expired)
+                _allItems.Remove(item);
+            RefreshVisibleItems();
+            if (selectionExpired)
+            {
+                SelectedItem = null;
+                Before = null;
+                After = null;
+                _selectedResult = null;
+                if (VisibleItems.Count > 0)
+                    await SelectItemAsync(VisibleItems[0]);
+                else
+                    Status = "Expired gallery images were removed. Drop images here to begin again.";
+            }
+            RefreshQueueState();
+        }
+        catch
+        {
+            // Retention is best effort while the app remains open; startup and the next timer retry it.
+        }
+        finally
+        {
+            _retentionCleanupRunning = false;
         }
     }
 
@@ -270,9 +335,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (added > 0)
         {
+            _galleryPage = 0;
             _standaloneError = false;
             ErrorDetails = "";
-            _eta.Enqueue(added);
+            GetEta(options).Enqueue(added);
             Status = rejected == 0
                 ? $"Added {added} {(added == 1 ? "image" : "images")} to the queue."
                 : $"Added {added} images. {rejected} skipped.";
@@ -300,6 +366,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private async Task ProcessQueueAsync()
     {
         var hadFailures = false;
+        var hadPersistenceFailures = false;
         try
         {
             while (!_disposed && _pending.Count > 0)
@@ -307,7 +374,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 var item = _pending.Dequeue();
                 _activeItem = item;
                 _activeCancellation = new CancellationTokenSource();
-                _eta.StartNext();
+                _activeEta = GetEta(item.Options);
+                _activeEta.StartNext();
                 _activeStopwatch.Restart();
                 _etaTimer.Start();
                 item.MarkProcessing();
@@ -336,16 +404,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     {
                         try
                         {
-                            historyItem = await _history.SaveAsync(result, item.DisplayName, DateTimeOffset.UtcNow, CancellationToken.None);
+                            historyItem = await _history.SaveAsync(result, item.DisplayName, DateTimeOffset.UtcNow, _activeCancellation.Token);
+                        }
+                        catch (OperationCanceledException) when (_activeCancellation.IsCancellationRequested)
+                        {
+                            throw;
                         }
                         catch (Exception exception)
                         {
+                            hadPersistenceFailures = true;
                             historyFailure = exception;
                         }
                     }
 
                     _activeStopwatch.Stop();
-                    _eta.CompleteActive(_activeStopwatch.Elapsed);
+                    _activeEta.CompleteActive(_activeStopwatch.Elapsed);
                     item.MarkCompleted(result, historyItem);
                     if (historyItem is not null)
                     {
@@ -372,7 +445,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     hadFailures = true;
                     _activeStopwatch.Stop();
-                    _eta.CancelActive();
+                    _activeEta.CancelActive();
                     item.MarkCancelled();
                     if (ReferenceEquals(SelectedItem, item))
                         Status = "Cancelled. Your original image is unchanged.";
@@ -381,7 +454,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     hadFailures = true;
                     _activeStopwatch.Stop();
-                    _eta.FailActive();
+                    _activeEta.FailActive();
                     item.MarkFailed("Highest quality needs a one-time download. Open Settings, download it, then try again.", exception);
                     SetSelectedError(item);
                 }
@@ -389,7 +462,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     hadFailures = true;
                     _activeStopwatch.Stop();
-                    _eta.FailActive();
+                    _activeEta.FailActive();
                     item.MarkFailed("We couldn't remove the background. Try this image again or choose another one.", exception);
                     SetSelectedError(item);
                 }
@@ -399,6 +472,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     _activeCancellation.Dispose();
                     _activeCancellation = null;
                     _activeItem = null;
+                    _activeEta = null;
                     RefreshVisibleItems();
                     RefreshQueueState();
                 }
@@ -408,7 +482,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             _queueTask = null;
             if (!_disposed)
-                Status = hadFailures ? "Queue finished. Some images need attention." : "All queued images are ready.";
+            {
+                Status = (hadFailures, hadPersistenceFailures) switch
+                {
+                    (true, true) => "Queue finished. Some images need attention, and some gallery copies could not be stored.",
+                    (true, false) => "Queue finished. Some images need attention.",
+                    (false, true) => "Queue finished. Some results were not stored in the gallery—save them manually.",
+                    _ => "All queued images are ready."
+                };
+            }
             RefreshQueueState();
         }
     }
@@ -486,7 +568,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             var retained = _pending.Where(queued => !ReferenceEquals(queued, item)).ToArray();
             _pending.Clear();
             foreach (var queued in retained) _pending.Enqueue(queued);
-            _eta.RemovePending();
+            GetEta(item.Options).RemovePending();
         }
         else if (item.HistoryItem is not null && _history is not null)
         {
@@ -617,14 +699,30 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         var queued = _allItems
             .Where(item => item.State is QueueItemState.Waiting or QueueItemState.Processing)
-            .OrderBy(item => item.AddedAtUtc);
+            .OrderBy(item => item.AddedAtUtc)
+            .ToArray();
         var gallery = _allItems
             .Where(item => item.State is not (QueueItemState.Waiting or QueueItemState.Processing))
-            .OrderByDescending(item => item.AddedAtUtc);
-        var visible = queued
-            .Concat(gallery)
-            .Take(ProcessedImageHistoryPolicy.GalleryPreviewLimit)
+            .OrderByDescending(item => item.AddedAtUtc)
             .ToArray();
+        var pageSize = ProcessedImageHistoryPolicy.GalleryPreviewLimit;
+        QueueItemViewModel[] visible;
+        if (queued.Length > 0)
+        {
+            _galleryPage = 0;
+            var visibleQueued = queued.Take(pageSize).ToArray();
+            visible = visibleQueued.Concat(gallery.Take(pageSize - visibleQueued.Length)).ToArray();
+        }
+        else
+        {
+            var maximumPage = gallery.Length == 0 ? 0 : (gallery.Length - 1) / pageSize;
+            _galleryPage = Math.Clamp(_galleryPage, 0, maximumPage);
+            visible = gallery.Skip(_galleryPage * pageSize).Take(pageSize).ToArray();
+        }
+
+        var visibleSet = visible.ToHashSet();
+        foreach (var item in _allItems.Where(item => !visibleSet.Contains(item)))
+            item.Thumbnail = null;
         VisibleItems.Clear();
         foreach (var item in visible)
         {
@@ -641,7 +739,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Raise(nameof(TotalItemCount));
         Raise(nameof(HiddenItemCount));
         Raise(nameof(HasHiddenItems));
+        Raise(nameof(HasNewerItems));
+        Raise(nameof(HasOlderItems));
         Raise(nameof(GallerySummary));
+    }
+
+    private int GalleryItemCount => _allItems.Count(item => item.State is not (QueueItemState.Waiting or QueueItemState.Processing));
+
+    private int GalleryPageStart => GalleryItemCount == 0 ? 0 : _galleryPage * ProcessedImageHistoryPolicy.GalleryPreviewLimit + 1;
+
+    private int GalleryPageEnd => Math.Min((_galleryPage + 1) * ProcessedImageHistoryPolicy.GalleryPreviewLimit, GalleryItemCount);
+
+    private void ChangeGalleryPage(int delta)
+    {
+        if (QueueCount > 0) return;
+        var maximumPage = GalleryItemCount == 0 ? 0 : (GalleryItemCount - 1) / ProcessedImageHistoryPolicy.GalleryPreviewLimit;
+        var nextPage = Math.Clamp(_galleryPage + delta, 0, maximumPage);
+        if (nextPage == _galleryPage) return;
+        _galleryPage = nextPage;
+        RefreshVisibleItems();
+        if (VisibleItems.Count > 0)
+            _ = SelectItemAsync(VisibleItems[0]);
+        RefreshCommands();
     }
 
     private void RefreshQueueState()
@@ -676,15 +795,49 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectQueueItemCommand.Refresh();
         CopyQueueItemCommand.Refresh();
         DeleteQueueItemCommand.Refresh();
+        ShowNewerItemsCommand.Refresh();
+        ShowOlderItemsCommand.Refresh();
+    }
+
+    private QueueEtaEstimator GetEta(ProcessingOptions options)
+    {
+        var profile = new ProcessingProfile(options.Model, options.EffectiveRefinement.Preset);
+        if (_etaByProfile.TryGetValue(profile, out var estimator)) return estimator;
+        estimator = new QueueEtaEstimator(minimumSamples: 1);
+        _etaByProfile.Add(profile, estimator);
+        return estimator;
+    }
+
+    private string FormatQueueEta()
+    {
+        if (QueueCount == 0) return "All caught up";
+        var estimates = _etaByProfile.Values
+            .Select(estimator => estimator.Current)
+            .Where(estimate => estimate.HasActiveItem || estimate.PendingCount > 0)
+            .ToArray();
+        if (estimates.Length == 0 || estimates.Any(estimate => estimate.State == QueueEtaState.WarmingUp))
+            return QueueEtaFormatter.FormatWarmingUp();
+
+        long totalTicks = 0;
+        foreach (var estimate in estimates)
+        {
+            var ticks = estimate.Remaining?.Ticks ?? 0;
+            if (ticks > TimeSpan.MaxValue.Ticks - totalTicks)
+                return QueueEtaFormatter.Format(TimeSpan.MaxValue);
+            totalTicks += ticks;
+        }
+        return QueueEtaFormatter.Format(TimeSpan.FromTicks(totalTicks));
     }
 
     private void OnEtaTick(object? sender, EventArgs e)
     {
-        if (!_eta.HasActiveItem) return;
-        _eta.UpdateActiveElapsed(_activeStopwatch.Elapsed);
+        if (_activeEta?.HasActiveItem != true) return;
+        _activeEta.UpdateActiveElapsed(_activeStopwatch.Elapsed);
         Raise(nameof(QueueEtaText));
         Raise(nameof(QueueSummary));
     }
+
+    private async void OnRetentionTick(object? sender, EventArgs e) => await RefreshRetentionAsync();
 
     public void Dispose()
     {
@@ -692,8 +845,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _disposed = true;
         _etaTimer.Stop();
         _etaTimer.Tick -= OnEtaTick;
+        _retentionTimer.Stop();
+        _retentionTimer.Tick -= OnRetentionTick;
         _activeCancellation?.Cancel();
         _activeCancellation?.Dispose();
         GC.SuppressFinalize(this);
     }
+
+    private readonly record struct ProcessingProfile(ModelKind Model, RefinementPreset Refinement);
 }

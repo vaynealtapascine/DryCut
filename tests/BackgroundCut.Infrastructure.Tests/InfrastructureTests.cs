@@ -97,6 +97,30 @@ public sealed class InfrastructureTests
     }
 
     [Fact]
+    public async Task ProcessAfterDisposeFailsBeforeOpeningNativeResources()
+    {
+        var placeholderModel = Path.GetTempFileName();
+        var engine = new OnnxBackgroundRemovalEngine();
+        try
+        {
+            engine.Dispose();
+            engine.Dispose();
+
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => engine.ProcessAsync(
+                new ImageInput("C:/missing.png"),
+                new ModelDescriptor(ModelKind.FastAndAccurate, placeholderModel, "placeholder", true, true),
+                RefinementSettings.Default,
+                null,
+                CancellationToken.None));
+        }
+        finally
+        {
+            engine.Dispose();
+            File.Delete(placeholderModel);
+        }
+    }
+
+    [Fact]
     public async Task RealModelSmokeIsOptIn()
     {
         var model = Environment.GetEnvironmentVariable("BACKGROUNDCUT_TEST_MODEL");

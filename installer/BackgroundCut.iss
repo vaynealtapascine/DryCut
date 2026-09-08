@@ -63,8 +63,91 @@ Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\image\shell\Backgro
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
-; Gallery entries are temporary app data; manually exported images live elsewhere and are retained.
-Type: filesandordirs; Name: "{localappdata}\BackgroundCut\history"
 
 [Run]
 Filename: "{app}\BackgroundCut.Desktop.exe"; Description: "Launch BackgroundCut"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function IsHex32(const Value: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := Length(Value) = 32;
+  if not Result then Exit;
+  for I := 1 to Length(Value) do
+    if Pos(Value[I], '0123456789abcdefABCDEF') = 0 then
+    begin
+      Result := False;
+      Exit;
+    end;
+end;
+
+function IsManagedArtifact(const FileName, Extension: String): Boolean;
+var
+  Stem: String;
+begin
+  Result := CompareText(ExtractFileExt(FileName), Extension) = 0;
+  if not Result then Exit;
+  Stem := Copy(FileName, 1, Length(FileName) - Length(Extension));
+  Result := IsHex32(Stem);
+end;
+
+function IsManagedTemporaryArtifact(const FileName: String): Boolean;
+var
+  Marker: Integer;
+  DestinationName, TemporaryId: String;
+begin
+  Marker := Pos('.tmp-', Lowercase(FileName));
+  Result := Marker > 1;
+  if not Result then Exit;
+  DestinationName := Copy(FileName, 1, Marker - 1);
+  TemporaryId := Copy(FileName, Marker + 5, Length(FileName));
+  Result := IsHex32(TemporaryId) and
+    (IsManagedArtifact(DestinationName, '.png') or IsManagedArtifact(DestinationName, '.json'));
+end;
+
+procedure DeleteManagedHistory;
+var
+  HistoryDirectory, Path, Stem: String;
+  FindData: TFindRec;
+begin
+  HistoryDirectory := ExpandConstant('{localappdata}\BackgroundCut\history');
+  if not DirExists(HistoryDirectory) then Exit;
+
+  if FindFirst(AddBackslash(HistoryDirectory) + '*.json', FindData) then
+  begin
+    try
+      repeat
+        if IsManagedArtifact(FindData.Name, '.json') then
+        begin
+          Path := AddBackslash(HistoryDirectory) + FindData.Name;
+          Stem := Copy(FindData.Name, 1, Length(FindData.Name) - 5);
+          DeleteFile(AddBackslash(HistoryDirectory) + Stem + '.png');
+          DeleteFile(Path);
+        end;
+      until not FindNext(FindData);
+    finally
+      FindClose(FindData);
+    end;
+  end;
+
+  if FindFirst(AddBackslash(HistoryDirectory) + '*.tmp-*', FindData) then
+  begin
+    try
+      repeat
+        if IsManagedTemporaryArtifact(FindData.Name) then
+          DeleteFile(AddBackslash(HistoryDirectory) + FindData.Name);
+      until not FindNext(FindData);
+    finally
+      FindClose(FindData);
+    end;
+  end;
+
+  RemoveDir(HistoryDirectory);
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+    DeleteManagedHistory;
+end;

@@ -67,7 +67,14 @@ public sealed class QueueItemViewModel : ObservableObject
     }
 
     public double Progress { get => _progress; private set => Set(ref _progress, value); }
-    public string Status { get => _status; private set => Set(ref _status, value); }
+    public string Status
+    {
+        get => _status;
+        private set
+        {
+            if (Set(ref _status, value)) Raise(nameof(SelectionAutomationName));
+        }
+    }
     public string ErrorDetails { get => _errorDetails; private set => Set(ref _errorDetails, value); }
     public BitmapSource? Thumbnail { get => _thumbnail; internal set => Set(ref _thumbnail, value); }
     public bool IsSelected { get => _isSelected; internal set => Set(ref _isSelected, value); }
@@ -79,6 +86,7 @@ public sealed class QueueItemViewModel : ObservableObject
     public bool CanCopy => IsCompleted && (HistoryItem is not null || InMemoryResult is not null);
     public bool CanDelete => !IsProcessing;
     public string TimestampText => AddedAtUtc.LocalDateTime.ToString("g", CultureInfo.CurrentCulture);
+    public string SelectionAutomationName => $"Select {DisplayName}, {Status}";
 
     public static QueueItemViewModel CreatePending(
         string sourcePath,

@@ -69,7 +69,7 @@ Dependencies point inward. Domain is dependency-free. Application cannot referen
    - applies optional edge refinement;
    - composes an RGBA image at the original dimensions.
 5. The result is retained in memory for preview, clipboard, and export, then persisted as a transparent PNG with metadata in the local history folder.
-6. History metadata can be enumerated newest-first without reading image pixels. The desktop gallery may load only its first 100 entries for rendering and loads full-resolution PNG data on demand.
+6. History metadata can be enumerated newest-first without reading image pixels. The desktop gallery pages through at most 100 rendered entries at a time and loads full-resolution PNG data on demand.
 7. The selected export policy determines the destination; generated names never overwrite existing files.
 
 ## 5. Model profiles

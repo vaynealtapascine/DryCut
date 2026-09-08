@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:BackgroundCut.Desktop.Ui"
         Title="BackgroundCut"
-        MinWidth="1080" MinHeight="700" Width="1320" Height="840"
+        MinWidth="1024" MinHeight="680" Width="1320" Height="840"
         Background="{StaticResource CanvasBrush}"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         WindowStartupLocation="CenterScreen"
@@ -46,8 +46,8 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="620"/>
-                <ColumnDefinition Width="370"/>
+                <ColumnDefinition Width="*" MinWidth="580"/>
+                <ColumnDefinition Width="340"/>
             </Grid.ColumnDefinitions>
 
             <!-- Main workspace -->
@@ -186,10 +186,10 @@
                     <Grid IsEnabled="{Binding CanAdjustQuality}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="170"/>
-                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="145"/>
+                            <ColumnDefinition Width="18"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="115"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
@@ -201,7 +201,7 @@
                                   SelectedValuePath="Value" DisplayMemberPath="Name" ToolTip="{Binding RefinementDescription}"/>
                         <TextBlock Grid.Column="5" Text="Newly added images use these settings." FontSize="12" Foreground="{StaticResource MutedBrush}"
                                    VerticalAlignment="Center" Margin="14,0" TextWrapping="Wrap"/>
-                        <Button Grid.Column="6" Content="Reprocess selected" Command="{Binding ApplyQualityCommand}"/>
+                        <Button Grid.Column="6" Content="Reprocess" Command="{Binding ApplyQualityCommand}" ToolTip="Reprocess selected image"/>
                     </Grid>
                 </Border>
 
@@ -224,6 +224,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
@@ -284,6 +285,7 @@
 
                                             <Button Grid.Column="0" Margin="0" Padding="0" Background="Transparent" BorderBrush="Transparent"
                                                     HorizontalContentAlignment="Stretch"
+                                                    AutomationProperties.Name="{Binding SelectionAutomationName}"
                                                     Command="{Binding DataContext.SelectQueueItemCommand, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                     CommandParameter="{Binding}">
                                                 <Grid>
@@ -342,7 +344,19 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <Border Grid.Row="3" Background="#FBF9F4" BorderBrush="#EEE7D8" BorderThickness="1" CornerRadius="11" Padding="11,9" Margin="0,11,0,0">
+                    <Grid Grid.Row="3" Margin="0,2,0,0"
+                          Visibility="{Binding HasHiddenItems, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Up to 100 items are shown at once." FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="Newer" Command="{Binding ShowNewerItemsCommand}" Style="{StaticResource SmallButton}"/>
+                        <Button Grid.Column="2" Content="Older" Command="{Binding ShowOlderItemsCommand}" Style="{StaticResource SmallButton}" Margin="6,0,0,0"/>
+                    </Grid>
+
+                    <Border Grid.Row="4" Background="#FBF9F4" BorderBrush="#EEE7D8" BorderThickness="1" CornerRadius="11" Padding="11,9" Margin="0,11,0,0">
                         <TextBlock Text="{Binding RetentionNotice}" FontSize="11" LineHeight="16" TextWrapping="Wrap" Foreground="#716750"/>
                     </Border>
                 </Grid>

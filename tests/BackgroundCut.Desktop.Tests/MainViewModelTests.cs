@@ -37,6 +37,44 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task UnsupportedDropDoesNotCoverAnExistingResultPanel()
+    {
+        var history = new HistoryStore();
+        await history.SaveAsync(new ProcessedImage([1, 2, 3, 255], 1, 1), "ready.png", DateTimeOffset.UtcNow);
+        using var vm = CreateViewModel(new FakeEngine(), history);
+        await vm.InitializeAsync();
+
+        vm.DropPath("C:/images/not-supported.gif");
+
+        Assert.True(vm.HasResult);
+        Assert.False(vm.HasError);
+        Assert.Contains("isn't supported", vm.Status);
+    }
+
+    [Fact]
+    public async Task EtaWarmsUpAgainForAProcessingProfileWithoutSamples()
+    {
+        var paths = CreateInputFiles(2);
+        var engine = new FakeEngine(TimeSpan.FromMilliseconds(80));
+        using var vm = CreateViewModel(engine);
+        try
+        {
+            vm.DropPath(paths[0]);
+            await vm.WhenQueueIsIdleAsync();
+            vm.Model = ModelKind.HighestQuality;
+
+            vm.DropPath(paths[1]);
+
+            Assert.Contains("Estimating", vm.QueueEtaText, StringComparison.OrdinalIgnoreCase);
+            await vm.WhenQueueIsIdleAsync();
+        }
+        finally
+        {
+            DeleteInputFiles(paths);
+        }
+    }
+
+    [Fact]
     public async Task MultipleDropsAreProcessedSequentiallyAndPersisted()
     {
         var paths = CreateInputFiles(3);
@@ -48,6 +86,7 @@ public sealed class MainViewModelTests
         {
             vm.DropPaths(paths);
             await vm.WhenQueueIsIdleAsync();
+            await vm.InitializeAsync();
 
             Assert.Equal(paths, engine.ProcessedPaths);
             Assert.Equal(1, engine.MaximumConcurrency);
@@ -59,6 +98,80 @@ public sealed class MainViewModelTests
         }
         finally
         {
+            DeleteInputFiles(paths);
+        }
+    }
+
+    [Fact]
+    public async Task PersistenceFailureKeepsResultCopyableAndWarnsAfterQueueFinishes()
+    {
+        var paths = CreateInputFiles(1);
+        var history = new HistoryStore { SaveFailure = new IOException("history unavailable") };
+        using var vm = CreateViewModel(new FakeEngine(), history);
+
+        try
+        {
+            vm.DropPath(paths[0]);
+            await vm.WhenQueueIsIdleAsync();
+
+            var item = Assert.Single(vm.VisibleItems);
+            Assert.True(item.IsCompleted);
+            Assert.True(item.CanCopy);
+            Assert.Null(item.HistoryItem);
+            Assert.Contains("not stored", vm.Status, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("not saved to history", item.Status, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            DeleteInputFiles(paths);
+        }
+    }
+
+    [Fact]
+    public async Task CancelDuringHistorySaveCancelsItemWithoutPersistingIt()
+    {
+        var paths = CreateInputFiles(1);
+        var history = new HistoryStore { BlockSaves = true };
+        using var vm = CreateViewModel(new FakeEngine(), history);
+
+        try
+        {
+            vm.DropPath(paths[0]);
+            await history.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            vm.CancelCommand.Execute(null);
+            await vm.WhenQueueIsIdleAsync();
+
+            var item = Assert.Single(vm.VisibleItems);
+            Assert.True(item.HasFailed);
+            Assert.Empty(history.Items);
+        }
+        finally
+        {
+            DeleteInputFiles(paths);
+        }
+    }
+
+    [Fact]
+    public async Task DisposeCancelsAnInFlightQueueItem()
+    {
+        var paths = CreateInputFiles(1);
+        var engine = new FakeEngine(blockUntilCancelled: true);
+        var vm = CreateViewModel(engine);
+        try
+        {
+            vm.DropPath(paths[0]);
+            await engine.StartedSignal.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var queueTask = vm.WhenQueueIsIdleAsync();
+
+            vm.Dispose();
+            await queueTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.False(vm.IsWorking);
+            Assert.True(Assert.Single(vm.VisibleItems).HasFailed);
+        }
+        finally
+        {
+            vm.Dispose();
             DeleteInputFiles(paths);
         }
     }
@@ -80,8 +193,17 @@ public sealed class MainViewModelTests
         Assert.Equal(100, vm.VisibleItems.Count);
         Assert.Equal(5, vm.HiddenItemCount);
         Assert.True(vm.HasHiddenItems);
-        Assert.Contains("stored off-screen", vm.GallerySummary);
+        Assert.Equal("Showing 1–100 of 105 items", vm.GallerySummary);
+        Assert.True(vm.HasOlderItems);
         Assert.Equal("image-0.png", vm.VisibleItems[0].DisplayName);
+
+        vm.ShowOlderItemsCommand.Execute(null);
+
+        Assert.Equal(5, vm.VisibleItems.Count);
+        Assert.True(vm.HasNewerItems);
+        Assert.False(vm.HasOlderItems);
+        Assert.Equal("Showing 101–105 of 105 items", vm.GallerySummary);
+        Assert.Equal("image-100.png", vm.VisibleItems[0].DisplayName);
     }
 
     [Fact]
@@ -98,6 +220,30 @@ public sealed class MainViewModelTests
         Assert.Equal(1, clipboard.CopyCount);
 
         vm.DeleteQueueItemCommand.Execute(item);
+        Assert.Empty(vm.VisibleItems);
+        Assert.Empty(history.Items);
+    }
+
+    [Fact]
+    public async Task RetentionRefreshRemovesItemsThatExpireWhileAppRemainsOpen()
+    {
+        var history = new HistoryStore();
+        await history.SaveAsync(
+            new ProcessedImage([1, 2, 3, 255], 1, 1),
+            "expiring.png",
+            DateTimeOffset.UtcNow.AddDays(-29));
+        using var vm = CreateViewModel(new FakeEngine(), history);
+        await vm.InitializeAsync();
+        Assert.Single(vm.VisibleItems);
+
+        var existing = history.Items[0];
+        history.Items[0] = new ProcessedImageHistoryItem(
+            existing.Id,
+            existing.OriginalFileName,
+            DateTimeOffset.UtcNow.AddDays(-31),
+            existing.PngPath);
+        await vm.RefreshRetentionAsync();
+
         Assert.Empty(vm.VisibleItems);
         Assert.Empty(history.Items);
     }
@@ -138,12 +284,13 @@ public sealed class MainViewModelTests
         public ModelDescriptor Resolve(ModelKind kind) => new(kind, kind.ToString(), kind.ToString(), true, true);
     }
 
-    private sealed class FakeEngine(TimeSpan? delay = null) : IBackgroundRemovalEngine
+    private sealed class FakeEngine(TimeSpan? delay = null, bool blockUntilCancelled = false) : IBackgroundRemovalEngine
     {
         private int _concurrency;
         public bool Started { get; private set; }
         public int MaximumConcurrency { get; private set; }
         public List<string> ProcessedPaths { get; } = [];
+        public TaskCompletionSource StartedSignal { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async Task<ProcessedImage> ProcessAsync(
             ImageInput input,
@@ -158,7 +305,9 @@ public sealed class MainViewModelTests
             try
             {
                 ProcessedPaths.Add(input.Path);
+                StartedSignal.TrySetResult();
                 progress?.Report(new ProcessingProgress("Removing the background…", 0.5));
+                if (blockUntilCancelled) await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                 if (delay is not null) await Task.Delay(delay.Value, cancellationToken);
                 return new ProcessedImage([1, 2, 3, 128], 1, 1);
             }
@@ -223,13 +372,22 @@ public sealed class MainViewModelTests
     {
         private readonly Dictionary<Guid, ProcessedImage> _images = [];
         public List<ProcessedImageHistoryItem> Items { get; } = [];
+        public Exception? SaveFailure { get; init; }
+        public bool BlockSaves { get; init; }
+        public TaskCompletionSource SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task<ProcessedImageHistoryItem> SaveAsync(ProcessedImage image, string originalFileName, DateTimeOffset processedAtUtc, CancellationToken cancellationToken = default)
+        public async Task<ProcessedImageHistoryItem> SaveAsync(ProcessedImage image, string originalFileName, DateTimeOffset processedAtUtc, CancellationToken cancellationToken = default)
         {
+            SaveStarted.TrySetResult();
+            if (BlockSaves)
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            if (SaveFailure is not null)
+                throw SaveFailure;
+
             var item = new ProcessedImageHistoryItem(Guid.NewGuid(), Path.GetFileName(originalFileName), processedAtUtc, Guid.NewGuid().ToString("N") + ".png");
             Items.Add(item);
             _images[item.Id] = image;
-            return Task.FromResult(item);
+            return item;
         }
 
         public Task<IReadOnlyList<ProcessedImageHistoryItem>> EnumerateMetadataAsync(CancellationToken cancellationToken = default) =>
@@ -247,6 +405,17 @@ public sealed class MainViewModelTests
             return Task.CompletedTask;
         }
 
-        public Task<int> CleanupAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(0);
+        public Task<int> CleanupAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var cutoff = nowUtc.ToUniversalTime() - ProcessedImageHistoryPolicy.Retention;
+            var expired = Items.Where(item => item.ProcessedAtUtc < cutoff).ToArray();
+            foreach (var item in expired)
+            {
+                Items.Remove(item);
+                _images.Remove(item.Id);
+            }
+            return Task.FromResult(expired.Length);
+        }
     }
 }

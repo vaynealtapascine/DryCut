@@ -16,9 +16,9 @@ QUEUE AND GALLERY
 - Images process one at a time in queue order. You can add more while the queue is running.
 - The queue header shows how many images remain and estimates the total time after the first image establishes a baseline.
 - Completed results remain in the same panel as a gallery and are loaded again when BackgroundCut starts.
-- BackgroundCut displays at most 100 queue/gallery entries at once. Additional completed results remain stored locally and the gallery shows how many are off-screen.
+- BackgroundCut displays at most 100 queue/gallery entries at once. Use Newer and Older to move between pages of completed results.
 - Select any result to preview it. Each completed entry has one-click Copy and Delete actions.
-- Gallery copies are temporary and are deleted on startup once they are older than 30 days. Use Save or Save as for any result you want to keep permanently.
+- Gallery copies are temporary and are deleted on startup, or during periodic cleanup while the app stays open, once they are older than 30 days. Use Save or Save as for any result you want to keep permanently.
 
 IMPROVE A RESULT
 ----------------

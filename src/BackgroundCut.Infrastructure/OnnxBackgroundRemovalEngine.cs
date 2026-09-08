@@ -12,9 +12,11 @@ public sealed class OnnxBackgroundRemovalEngine : IBackgroundRemovalEngine, IDis
 {
     private const int InputSize = 1024;
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _processGate = new(1, 1);
     private InferenceSession? _session;
     private string? _loadedModel;
     private bool _usingDirectMl;
+    private bool _disposed;
 
     public bool UsingDirectMl => _usingDirectMl;
 
@@ -28,42 +30,54 @@ public sealed class OnnxBackgroundRemovalEngine : IBackgroundRemovalEngine, IDis
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(refinement);
-        if (!File.Exists(model.Id))
-            throw new FileNotFoundException("The selected ONNX model was not found.", model.Id);
 
-        progress?.Report(new ProcessingProgress("Opening image…", 0.05));
-        var source = await ImageSharpImageService.DecodeAsync(input.Path, cancellationToken).ConfigureAwait(false);
-        progress?.Report(new ProcessingProgress("Preparing image…", 0.18));
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var profile = ModelProfile.For(model.Kind);
-        var tensor = CreateInputTensor(source, profile);
-        var session = GetSession(model.Id);
-
-        float[] values;
+        await _processGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            values = await Task.Run(() => Run(session, tensor, profile), cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (_usingDirectMl && ex is not OperationCanceledException)
-        {
             lock (_gate)
-            {
-                _session?.Dispose();
-                _session = CreateSession(model.Id, useDirectMl: false);
-                _usingDirectMl = false;
-            }
-            values = await Task.Run(() => Run(_session!, tensor, profile), cancellationToken).ConfigureAwait(false);
-        }
+                ObjectDisposedException.ThrowIf(_disposed, this);
 
-        progress?.Report(new ProcessingProgress(
-            _usingDirectMl ? "Refining edges (GPU)…" : "Refining edges (CPU)…",
-            0.80));
-        cancellationToken.ThrowIfCancellationRequested();
-        var alpha = ResizeMask(NormalizeMask(values, profile.OutputIsLogits), InputSize, InputSize, source.Width, source.Height);
-        EdgeRefinement.Apply(alpha, source.Width, source.Height, refinement, source.Pixels);
-        progress?.Report(new ProcessingProgress("Finishing transparent image…", 1));
-        return ImageSharpImageService.ComposeRgba(source, alpha);
+            if (!File.Exists(model.Id))
+                throw new FileNotFoundException("The selected ONNX model was not found.", model.Id);
+
+            progress?.Report(new ProcessingProgress("Opening image…", 0.05));
+            var source = await ImageSharpImageService.DecodeAsync(input.Path, cancellationToken).ConfigureAwait(false);
+            progress?.Report(new ProcessingProgress("Preparing image…", 0.18));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var profile = ModelProfile.For(model.Kind);
+            var tensor = CreateInputTensor(source, profile);
+            var session = GetSession(model.Id);
+
+            float[] values;
+            try
+            {
+                values = await Task.Run(() => Run(session, tensor, profile), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (_usingDirectMl && ex is not OperationCanceledException)
+            {
+                lock (_gate)
+                {
+                    _session?.Dispose();
+                    _session = CreateSession(model.Id, useDirectMl: false);
+                    _usingDirectMl = false;
+                }
+                values = await Task.Run(() => Run(_session!, tensor, profile), cancellationToken).ConfigureAwait(false);
+            }
+
+            progress?.Report(new ProcessingProgress(
+                _usingDirectMl ? "Refining edges (GPU)…" : "Refining edges (CPU)…",
+                0.80));
+            cancellationToken.ThrowIfCancellationRequested();
+            var alpha = ResizeMask(NormalizeMask(values, profile.OutputIsLogits), InputSize, InputSize, source.Width, source.Height);
+            EdgeRefinement.Apply(alpha, source.Width, source.Height, refinement, source.Pixels);
+            progress?.Report(new ProcessingProgress("Finishing transparent image…", 1));
+            return ImageSharpImageService.ComposeRgba(source, alpha);
+        }
+        finally
+        {
+            _processGate.Release();
+        }
     }
 
     private InferenceSession GetSession(string modelPath)
@@ -191,11 +205,21 @@ public sealed class OnnxBackgroundRemovalEngine : IBackgroundRemovalEngine, IDis
 
     public void Dispose()
     {
-        lock (_gate)
+        _processGate.Wait();
+        try
         {
-            _session?.Dispose();
-            _session = null;
-            _loadedModel = null;
+            lock (_gate)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _session?.Dispose();
+                _session = null;
+                _loadedModel = null;
+            }
+        }
+        finally
+        {
+            _processGate.Release();
         }
     }
 

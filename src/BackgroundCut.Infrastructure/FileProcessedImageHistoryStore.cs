@@ -43,6 +43,8 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         var metadataPath = GetMetadataPath(id);
         var temporaryPngPath = CreateTemporaryPath(pngPath);
         var temporaryMetadataPath = CreateTemporaryPath(metadataPath);
+        var pngCommitted = false;
+        var metadataCommitted = false;
 
         try
         {
@@ -58,6 +60,7 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
             File.Move(temporaryPngPath, pngPath);
+            pngCommitted = true;
 
             await using (var stream = new FileStream(
                 temporaryMetadataPath,
@@ -71,12 +74,15 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
             File.Move(temporaryMetadataPath, metadataPath);
+            metadataCommitted = true;
             return item;
         }
         finally
         {
             DeleteIfPresent(temporaryPngPath);
             DeleteIfPresent(temporaryMetadataPath);
+            if (pngCommitted && !metadataCommitted)
+                DeleteIfPresent(pngPath);
         }
     }
 
@@ -161,8 +167,7 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
             return Task.FromResult(0);
 
         var cutoff = nowUtc.ToUniversalTime() - ProcessedImageHistoryPolicy.Retention;
-        var metadataPaths = EnumerateFilesSafely("*.json");
-        var referencedPngPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var metadataPaths = EnumerateFilesSafely("*.json").Where(IsOwnedMetadataFile).ToList();
         var deletedItems = 0;
 
         foreach (var metadataPath in metadataPaths)
@@ -171,7 +176,11 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
             if (!TryReadMetadata(metadataPath, out var item))
             {
                 if (IsOlderThan(metadataPath, cutoff))
+                {
+                    if (Guid.TryParseExact(Path.GetFileNameWithoutExtension(metadataPath), "N", out var metadataId))
+                        DeleteIfPresent(GetPngPath(metadataId));
                     DeleteIfPresent(metadataPath);
+                }
                 continue;
             }
 
@@ -179,6 +188,7 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
             if (!File.Exists(pngPath))
             {
                 DeleteIfPresent(metadataPath);
+                deletedItems++;
                 continue;
             }
             if (item.ProcessedAtUtc < cutoff)
@@ -187,16 +197,12 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
                 DeleteIfPresent(metadataPath);
                 deletedItems++;
             }
-            else
-            {
-                referencedPngPaths.Add(Path.GetFullPath(pngPath));
-            }
         }
 
         foreach (var path in EnumerateFilesSafely("*"))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IsCleanupCandidate(path) || referencedPngPaths.Contains(Path.GetFullPath(path)))
+            if (!IsCleanupCandidate(path))
                 continue;
             if (IsOlderThan(path, cutoff))
                 DeleteIfPresent(path);
@@ -273,9 +279,26 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         }
     }
 
-    private static bool IsCleanupCandidate(string path) =>
-        string.Equals(Path.GetExtension(path), ".png", StringComparison.OrdinalIgnoreCase) ||
-        Path.GetFileName(path).Contains(".tmp-", StringComparison.OrdinalIgnoreCase);
+    private static bool IsCleanupCandidate(string path) => IsOwnedTemporaryFile(path);
+
+    private static bool IsOwnedMetadataFile(string path) => IsGuidArtifact(path, ".json");
+
+    private static bool IsOwnedPngFile(string path) => IsGuidArtifact(path, ".png");
+
+    private static bool IsGuidArtifact(string path, string extension) =>
+        string.Equals(Path.GetExtension(path), extension, StringComparison.OrdinalIgnoreCase) &&
+        Guid.TryParseExact(Path.GetFileNameWithoutExtension(path), "N", out _);
+
+    private static bool IsOwnedTemporaryFile(string path)
+    {
+        var fileName = Path.GetFileName(path);
+        var marker = fileName.LastIndexOf(".tmp-", StringComparison.OrdinalIgnoreCase);
+        if (marker <= 0 || !Guid.TryParseExact(fileName[(marker + 5)..], "N", out _))
+            return false;
+
+        var destinationName = fileName[..marker];
+        return IsGuidArtifact(destinationName, ".png") || IsGuidArtifact(destinationName, ".json");
+    }
 
     private static bool IsOlderThan(string path, DateTimeOffset cutoff)
     {
