@@ -63,6 +63,8 @@ Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\image\shell\Backgro
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+; Gallery entries are temporary app data; manually exported images live elsewhere and are retained.
+Type: filesandordirs; Name: "{localappdata}\BackgroundCut\history"
 
 [Run]
 Filename: "{app}\BackgroundCut.Desktop.exe"; Description: "Launch BackgroundCut"; Flags: nowait postinstall skipifsilent

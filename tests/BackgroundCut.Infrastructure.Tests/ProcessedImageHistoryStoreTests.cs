@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BackgroundCut.Domain.Models;
 
 namespace BackgroundCut.Infrastructure.Tests;
@@ -137,6 +138,39 @@ public sealed class ProcessedImageHistoryStoreTests
             Assert.False(File.Exists(metadataPath));
             Assert.Empty(await store.EnumerateMetadataAsync());
             Assert.Null(await store.LoadAsync(item));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task EnumerationRejectsForeignReferencesAndMissingArtifacts()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var valid = await store.SaveAsync(OnePixel(1, 2, 3, 255), "valid.png", DateTimeOffset.UtcNow);
+            var missing = await store.SaveAsync(OnePixel(4, 5, 6, 255), "missing.png", DateTimeOffset.UtcNow);
+            File.Delete(Path.Combine(directory, missing.PngPath));
+
+            var forgedId = Guid.NewGuid();
+            var forged = new ProcessedImageHistoryItem(forgedId, "forged.png", DateTimeOffset.UtcNow, valid.PngPath);
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, forgedId.ToString("N") + ".json"),
+                JsonSerializer.Serialize(forged));
+
+            var items = await store.EnumerateMetadataAsync();
+
+            Assert.Single(items);
+            Assert.Equal(valid.Id, items[0].Id);
+            Assert.NotNull(store.GetImagePath(valid));
+            Assert.Null(store.GetImagePath(forged));
+
+            await store.CleanupAsync(DateTimeOffset.UtcNow);
+            Assert.False(File.Exists(Path.Combine(directory, missing.Id.ToString("N") + ".json")));
         }
         finally
         {

@@ -84,13 +84,31 @@ public sealed class MainViewModelTests
         Assert.Equal("image-0.png", vm.VisibleItems[0].DisplayName);
     }
 
-    private static MainViewModel CreateViewModel(FakeEngine engine, HistoryStore? history = null)
+    [Fact]
+    public async Task GalleryActionsCopyAndDeleteOneItem()
+    {
+        var history = new HistoryStore();
+        await history.SaveAsync(new ProcessedImage([1, 2, 3, 128], 1, 1), "gallery.png", DateTimeOffset.UtcNow);
+        var clipboard = new Clipboard();
+        using var vm = CreateViewModel(new FakeEngine(), history, clipboard);
+        await vm.InitializeAsync();
+        var item = Assert.Single(vm.VisibleItems);
+
+        vm.CopyQueueItemCommand.Execute(item);
+        Assert.Equal(1, clipboard.CopyCount);
+
+        vm.DeleteQueueItemCommand.Execute(item);
+        Assert.Empty(vm.VisibleItems);
+        Assert.Empty(history.Items);
+    }
+
+    private static MainViewModel CreateViewModel(FakeEngine engine, HistoryStore? history = null, Clipboard? clipboard = null)
     {
         var settings = new Settings();
         return new MainViewModel(
             new RemoveBackgroundUseCase(engine, new Catalog()),
             new ExportImageUseCase(new Exporter(), settings),
-            new Clipboard(),
+            clipboard ?? new Clipboard(),
             settings,
             new Desktop(),
             history);
@@ -165,7 +183,13 @@ public sealed class MainViewModelTests
 
     private sealed class Clipboard : IClipboardService
     {
-        public Task CopyAsync(ProcessedImage image, CancellationToken cancellationToken) => Task.CompletedTask;
+        public int CopyCount { get; private set; }
+
+        public Task CopyAsync(ProcessedImage image, CancellationToken cancellationToken)
+        {
+            CopyCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class Desktop : IDesktopServices

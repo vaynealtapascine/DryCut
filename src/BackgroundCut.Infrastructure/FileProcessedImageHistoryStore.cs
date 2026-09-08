@@ -92,7 +92,7 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
             foreach (var path in Directory.EnumerateFiles(_historyDirectory, "*.json", SearchOption.TopDirectoryOnly))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (TryReadMetadata(path, out var item))
+                if (TryReadMetadata(path, out var item) && GetImagePath(item) is not null)
                     items.Add(item);
             }
         }
@@ -176,6 +176,11 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
             }
 
             var pngPath = TryResolvePngPath(item) ?? GetPngPath(item.Id);
+            if (!File.Exists(pngPath))
+            {
+                DeleteIfPresent(metadataPath);
+                continue;
+            }
             if (item.ProcessedAtUtc < cutoff)
             {
                 DeleteIfPresent(pngPath);
@@ -219,6 +224,10 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         if (Path.IsPathRooted(item.PngPath) || !string.Equals(Path.GetExtension(item.PngPath), ".png", StringComparison.OrdinalIgnoreCase))
             return null;
 
+        var expectedFileName = item.Id.ToString("N") + ".png";
+        if (!string.Equals(item.PngPath, expectedFileName, StringComparison.OrdinalIgnoreCase))
+            return null;
+
         try
         {
             var fullPath = Path.GetFullPath(Path.Combine(_historyDirectory, item.PngPath));
@@ -240,6 +249,8 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         {
             var parsed = JsonSerializer.Deserialize<ProcessedImageHistoryItem>(File.ReadAllText(path), JsonOptions);
             if (parsed is null || TryResolvePngPath(parsed) is null)
+                return false;
+            if (!string.Equals(Path.GetFullPath(path), Path.GetFullPath(GetMetadataPath(parsed.Id)), StringComparison.OrdinalIgnoreCase))
                 return false;
             item = parsed;
             return true;

@@ -171,6 +171,8 @@ The installed layout is conventional multi-file self-contained .NET output becau
 - Opens JPG/PNG/WebP/BMP/TIFF from picker, drag/drop, command line, and Explorer context menu.
 - Produces a same-size RGBA result with nontrivial transparency using the bundled model.
 - UI remains responsive and exposes cancel/progress/error states.
+- Multiple images process sequentially with a learned queue ETA; successful results persist locally across restarts.
+- The queue/gallery renders at most 100 lightweight entries, supports per-item copy/delete, and cleans entries older than 30 days without touching manual exports.
 - Copy and all three save policies work without silent overwrite.
 - Model selection and all refinement presets persist.
 - Optional model download is user-initiated, progress-reporting, checksum-verified, and recoverable.

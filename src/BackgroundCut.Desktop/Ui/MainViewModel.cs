@@ -198,13 +198,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             }
             RefreshVisibleItems();
 
-            foreach (var item in VisibleItems.Where(item => item.HistoryItem is not null).ToArray())
-            {
-                var path = _history.GetImagePath(item.HistoryItem!);
-                if (path is not null) item.Thumbnail = _desktop.Preview.FromFile(path, 180);
-                await Task.Yield();
-            }
-
             if (SelectedItem is null && VisibleItems.Count > 0)
                 await SelectItemAsync(VisibleItems[0]);
         }
@@ -214,7 +207,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void ChooseImages() => EnqueuePaths(_desktop.FileDialogs.PickImages());
+    public void ChooseImages()
+    {
+        try
+        {
+            EnqueuePaths(_desktop.FileDialogs.PickImages());
+        }
+        catch (Exception exception)
+        {
+            _standaloneError = true;
+            Status = "The image picker could not be opened. Try dragging images into the window instead.";
+            ErrorDetails = exception.ToString();
+            RefreshViewState();
+        }
+    }
     public void DropPath(string? path) => EnqueuePaths(path is null ? [] : [path]);
     public void DropPaths(IEnumerable<string> paths) => EnqueuePaths(paths);
 
@@ -237,7 +243,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 continue;
             }
 
-            var fullPath = Path.GetFullPath(candidate);
+            string fullPath;
+            try
+            {
+                fullPath = Path.GetFullPath(candidate);
+            }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                rejected++;
+                lastRejection = "Some images were skipped because their file names were not valid.";
+                continue;
+            }
             if (!File.Exists(fullPath))
             {
                 rejected++;
@@ -245,8 +261,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 continue;
             }
 
-            var thumbnail = _desktop.Preview.FromFile(fullPath, 180);
-            var item = QueueItemViewModel.CreatePending(fullPath, DateTimeOffset.UtcNow, thumbnail, options);
+            var item = QueueItemViewModel.CreatePending(fullPath, DateTimeOffset.UtcNow, null, options);
             var insertionIndex = _allItems.FindIndex(existing => existing.State is QueueItemState.Completed or QueueItemState.Failed or QueueItemState.Cancelled);
             _allItems.Insert(insertionIndex < 0 ? _allItems.Count : insertionIndex, item);
             _pending.Enqueue(item);
@@ -519,21 +534,37 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private async Task SaveAsync()
     {
         if (SelectedItem is null) return;
-        var settings = await _settings.LoadExportSettingsAsync(CancellationToken.None);
-        string? requestedPath = null;
-        if (settings.Policy == ExportPolicy.AskEveryTime)
+        try
         {
-            requestedPath = _desktop.FileDialogs.PickSavePath(GetSuggestedName());
-            if (requestedPath is null) return;
+            var settings = await _settings.LoadExportSettingsAsync(CancellationToken.None);
+            string? requestedPath = null;
+            if (settings.Policy == ExportPolicy.AskEveryTime)
+            {
+                requestedPath = _desktop.FileDialogs.PickSavePath(GetSuggestedName());
+                if (requestedPath is null) return;
+            }
+            await ExportAsync(requestedPath);
         }
-        await ExportAsync(requestedPath);
+        catch (Exception exception)
+        {
+            Status = "We couldn't prepare the save location. Open Settings and check the output folder.";
+            ErrorDetails = exception.ToString();
+        }
     }
 
     private async Task SaveAsAsync()
     {
         if (SelectedItem is null) return;
-        var path = _desktop.FileDialogs.PickSavePath(GetSuggestedName());
-        if (path is not null) await ExportAsync(path);
+        try
+        {
+            var path = _desktop.FileDialogs.PickSavePath(GetSuggestedName());
+            if (path is not null) await ExportAsync(path);
+        }
+        catch (Exception exception)
+        {
+            Status = "We couldn't open the save dialog. Try Save instead.";
+            ErrorDetails = exception.ToString();
+        }
     }
 
     private async Task ExportAsync(string? requestedPath)
@@ -562,8 +593,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private async Task OpenSettingsAsync()
     {
-        var owner = System.Windows.Application.Current?.MainWindow;
-        if (owner is not null) await _desktop.OpenSettingsAsync(owner);
+        try
+        {
+            var owner = System.Windows.Application.Current?.MainWindow;
+            if (owner is not null) await _desktop.OpenSettingsAsync(owner);
+        }
+        catch (Exception exception)
+        {
+            Status = "Settings could not be opened.";
+            ErrorDetails = exception.ToString();
+        }
     }
 
     private void SetSelectedError(QueueItemViewModel item)
@@ -576,9 +615,29 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshVisibleItems()
     {
-        var visible = _allItems.Take(ProcessedImageHistoryPolicy.GalleryPreviewLimit).ToArray();
+        var queued = _allItems
+            .Where(item => item.State is QueueItemState.Waiting or QueueItemState.Processing)
+            .OrderBy(item => item.AddedAtUtc);
+        var gallery = _allItems
+            .Where(item => item.State is not (QueueItemState.Waiting or QueueItemState.Processing))
+            .OrderByDescending(item => item.AddedAtUtc);
+        var visible = queued
+            .Concat(gallery)
+            .Take(ProcessedImageHistoryPolicy.GalleryPreviewLimit)
+            .ToArray();
         VisibleItems.Clear();
-        foreach (var item in visible) VisibleItems.Add(item);
+        foreach (var item in visible)
+        {
+            if (item.Thumbnail is null)
+            {
+                var previewPath = item.SourcePath;
+                if (previewPath is null && item.HistoryItem is not null)
+                    previewPath = _history?.GetImagePath(item.HistoryItem);
+                if (previewPath is not null)
+                    item.Thumbnail = _desktop.Preview.FromFile(previewPath, 180);
+            }
+            VisibleItems.Add(item);
+        }
         Raise(nameof(TotalItemCount));
         Raise(nameof(HiddenItemCount));
         Raise(nameof(HasHiddenItems));

@@ -5,11 +5,20 @@ WHAT IT DOES
 ------------
 BackgroundCut removes image backgrounds on your Windows PC. Processing is local: your images are not uploaded. The original file is never changed.
 
-OPEN AN IMAGE
--------------
-- Drag an image onto the BackgroundCut window, or select "Choose image".
-- Supported formats: PNG, JPEG, WebP, BMP, TIFF, and GIF.
+OPEN OR QUEUE IMAGES
+--------------------
+- Drag one or several images onto the BackgroundCut window, or select "Choose images". The file picker supports multi-select.
+- Supported formats: PNG, JPEG, WebP, BMP, and TIFF.
 - You can also right-click an image in Explorer after enabling the optional context-menu item in Settings. On Windows 11, the item may appear under "Show more options".
+
+QUEUE AND GALLERY
+-----------------
+- Images process one at a time in queue order. You can add more while the queue is running.
+- The queue header shows how many images remain and estimates the total time after the first image establishes a baseline.
+- Completed results remain in the same panel as a gallery and are loaded again when BackgroundCut starts.
+- BackgroundCut displays at most 100 queue/gallery entries at once. Additional completed results remain stored locally and the gallery shows how many are off-screen.
+- Select any result to preview it. Each completed entry has one-click Copy and Delete actions.
+- Gallery copies are temporary and are deleted on startup once they are older than 30 days. Use Save or Save as for any result you want to keep permanently.
 
 IMPROVE A RESULT
 ----------------
@@ -20,10 +29,10 @@ Model:
 Edge detail:
 - None: keep the model mask unchanged.
 - Balanced: light cleanup for general use.
-- Smooth: soften rough edges.
+- Soft: gently soften rough edges.
 - Detailed: spend more time preserving fine edge detail.
 
-After changing a choice, select "Apply quality changes".
+Newly queued images use the current choices. To run the selected current-session image again, select "Reprocess selected".
 
 EXPORT
 ------
@@ -51,6 +60,7 @@ PRIVACY
 - Image decoding, model inference, edge cleanup, previewing, copying, and saving happen locally.
 - The only network feature is the explicit optional-model download.
 - Settings are stored under %LOCALAPPDATA%\BackgroundCut.
+- Temporary processed-image gallery copies are stored under %LOCALAPPDATA%\BackgroundCut\history and are removed after 30 days.
 
 TROUBLESHOOTING
 ---------------
@@ -62,4 +72,4 @@ TROUBLESHOOTING
 
 UNINSTALL
 ---------
-Use Windows Settings > Apps > Installed apps > BackgroundCut > Uninstall. The uninstaller removes installed files and the Explorer menu entry. Your exported images are left alone.
+Use Windows Settings > Apps > Installed apps > BackgroundCut > Uninstall. The uninstaller removes installed files, the Explorer menu entry, and the temporary gallery. Your manually exported images are left alone.
