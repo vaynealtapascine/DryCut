@@ -849,6 +849,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _retentionTimer.Tick -= OnRetentionTick;
         _activeCancellation?.Cancel();
         _activeCancellation?.Dispose();
+        Raise(nameof(CanAdjustQuality));
         GC.SuppressFinalize(this);
     }
 

@@ -23,12 +23,16 @@ $temp = "$destinationPath.download"
 try {
     Remove-Item -Force -ErrorAction SilentlyContinue $temp
     $client = [Net.Http.HttpClient]::new()
-    $client.DefaultRequestHeaders.UserAgent.ParseAdd('BackgroundCut-release-builder/1.0')
-    $response = $client.GetAsync($ModelUri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
-    $response.EnsureSuccessStatusCode()
-    $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
-    $file = [IO.File]::Create($temp)
-    try { $stream.CopyTo($file) } finally { $file.Dispose(); $stream.Dispose(); $response.Dispose(); $client.Dispose() }
+    try {
+        $client.DefaultRequestHeaders.UserAgent.ParseAdd('BackgroundCut-release-builder/1.0')
+        $response = $client.GetAsync($ModelUri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        try {
+            $response.EnsureSuccessStatusCode()
+            $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+            $file = [IO.File]::Create($temp)
+            try { $stream.CopyTo($file) } finally { $file.Dispose(); $stream.Dispose() }
+        } finally { $response.Dispose() }
+    } finally { $client.Dispose() }
 
     $actualBytes = (Get-Item $temp).Length
     if ($actualBytes -ne $ExpectedBytes) { throw "Model length mismatch: expected $ExpectedBytes bytes, got $actualBytes." }

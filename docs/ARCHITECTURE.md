@@ -87,10 +87,18 @@ Dependencies point inward. Domain is dependency-free. Application cannot referen
 ### Highest quality (optional)
 
 - BiRefNet FP16 ONNX
-- Input: RGB normalized with ImageNet mean/std at 1024²
-- Output: sigmoid alpha matte
+- Input: `input_image` (preferred name), RGB normalized with ImageNet mean/std at 1024²
+- Output: `output_image` (preferred name), raw logits — the engine applies sigmoid itself (`OutputIsLogits: true`), not a pre-applied alpha matte
 - Approximate download: 490 MB
 - License: MIT upstream. Exact downloaded file is checksum-verified against the catalog before activation.
+
+`ModelProfile`'s input/output names above are preferences, not requirements. The engine resolves the
+actual tensor names, element type (float32 or float16) and output spatial dimensions from the loaded
+`InferenceSession`'s own `InputMetadata`/`OutputMetadata` at load time, rather than hardcoding them —
+this is what lets the same code path handle an fp32 IS-Net graph and an fp16 BiRefNet export, or a
+BiRefNet export whose tensor names differ from the historical assumption, without guessing. Normalization
+constants and `OutputIsLogits` remain per-model-kind data in `ModelProfile`, since those cannot be
+discovered from metadata.
 
 Model definitions are data (`ModelDescriptor`) rather than branching UI logic. A failed optional download leaves the bundled model usable.
 

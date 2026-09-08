@@ -21,10 +21,10 @@ public partial class App : System.Windows.Application, IDisposable
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
         _instance = new SingleInstanceCoordinator();
-        var requested = e.Args.Length == 1 ? e.Args[0] : null;
+        var requested = e.Args;
         if (!_instance.IsFirstInstance)
         {
-            if (requested is not null) SingleInstanceCoordinator.TryHandoff(requested);
+            foreach (var path in requested) SingleInstanceCoordinator.TryHandoff(path);
             Shutdown();
             return;
         }
@@ -54,17 +54,31 @@ public partial class App : System.Windows.Application, IDisposable
 
         var window = new MainWindow { DataContext = _viewModel };
         MainWindow = window;
-        _instance.PathReceived += (_, path) => window.Dispatcher.Invoke(() =>
+        _instance.PathReceived += (_, path) =>
         {
-            if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
-            window.Show();
-            window.Activate();
-            window.Topmost = true;
-            window.Topmost = false;
-            _viewModel.DropPath(path);
-        });
+            var dispatcher = window.Dispatcher;
+            if (dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished) return;
+            try
+            {
+                dispatcher.Invoke(() =>
+                {
+                    if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+                    window.Show();
+                    window.Activate();
+                    window.Topmost = true;
+                    window.Topmost = false;
+                    _viewModel.DropPath(path);
+                });
+            }
+            catch (Exception)
+            {
+                // The app is shutting down and the dispatcher is no longer accepting work
+                // (the exact exception type varies with shutdown timing). This handler runs
+                // on a threadpool thread with nothing to report to, so we just drop the request.
+            }
+        };
         window.Show();
-        if (requested is not null) _viewModel.DropPath(requested);
+        if (requested.Length > 0) _viewModel.DropPaths(requested);
     }
 
     private void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs args)

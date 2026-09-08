@@ -177,6 +177,20 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public void DisposeRaisesCanAdjustQualityChangedAndDisablesIt()
+    {
+        var vm = CreateViewModel(new FakeEngine());
+        Assert.True(vm.CanAdjustQuality);
+        var raisedProperties = new List<string?>();
+        vm.PropertyChanged += (_, args) => raisedProperties.Add(args.PropertyName);
+
+        vm.Dispose();
+
+        Assert.False(vm.CanAdjustQuality);
+        Assert.Contains(nameof(MainViewModel.CanAdjustQuality), raisedProperties);
+    }
+
+    [Fact]
     public async Task StartupHistoryDisplaysOnlyFirstHundredItems()
     {
         var history = new HistoryStore();

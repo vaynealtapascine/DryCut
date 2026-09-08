@@ -40,7 +40,7 @@ public sealed class SettingsViewModel : ObservableObject
         _policy = initial.Policy;
         _folder = initial.DefaultFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "BackgroundCut");
 
-        BrowseCommand = new RelayCommand(_ => Folder = _dialogs.PickFolder(Folder) ?? Folder);
+        BrowseCommand = new RelayCommand(_ => Browse());
         SaveCommand = new AsyncCommand(_ => SaveAsync(), _ => !IsDownloading);
         CancelCommand = new RelayCommand(_ => _close(), _ => !IsDownloading);
         DownloadModelCommand = new AsyncCommand(_ => DownloadModelAsync(), _ => !IsDownloading && !HighestQualityInstalled);
@@ -142,12 +142,35 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
+    private void Browse()
+    {
+        try
+        {
+            Folder = _dialogs.PickFolder(Folder) ?? Folder;
+        }
+        catch (Exception ex)
+        {
+            ModelStatus = $"Couldn't open the folder picker: {ex.Message}";
+        }
+    }
+
     private void RemoveModel()
     {
-        _catalog.RemoveOptionalModel(ModelKind.HighestQuality);
-        HighestQualityInstalled = false;
-        DownloadProgress = 0;
-        ModelStatus = "Highest-quality model removed. Fast & accurate is still ready.";
+        try
+        {
+            var removed = _catalog.RemoveOptionalModel(ModelKind.HighestQuality);
+            HighestQualityInstalled = false;
+            DownloadProgress = 0;
+            ModelStatus = removed
+                ? "Highest-quality model removed. Fast & accurate is still ready."
+                : "Highest-quality model was already removed. Fast & accurate is still ready.";
+        }
+        catch (Exception ex)
+        {
+            // The file may still be in use (e.g. an open inference session) or otherwise
+            // inaccessible. Nothing changed, so leave HighestQualityInstalled as-is.
+            ModelStatus = $"Couldn't remove the highest-quality model: {ex.Message}";
+        }
     }
 
     private void RefreshCommands()

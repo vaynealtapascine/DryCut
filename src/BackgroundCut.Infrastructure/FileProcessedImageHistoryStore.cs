@@ -155,8 +155,8 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         if (TryReadMetadata(metadataPath, out var item))
             pngPath = TryResolvePngPath(item) ?? pngPath;
 
-        File.Delete(pngPath);
-        File.Delete(metadataPath);
+        DeleteArtifactIgnoringMissingDirectory(pngPath);
+        DeleteArtifactIgnoringMissingDirectory(metadataPath);
         return Task.CompletedTask;
     }
 
@@ -202,10 +202,14 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         foreach (var path in EnumerateFilesSafely("*"))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IsCleanupCandidate(path))
+            if (IsOwnedTemporaryFile(path))
+            {
+                if (IsOlderThan(path, cutoff))
+                    DeleteIfPresent(path);
                 continue;
-            if (IsOlderThan(path, cutoff))
-                DeleteIfPresent(path);
+            }
+
+
         }
 
         return Task.FromResult(deletedItems);
@@ -279,8 +283,6 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         }
     }
 
-    private static bool IsCleanupCandidate(string path) => IsOwnedTemporaryFile(path);
-
     private static bool IsOwnedMetadataFile(string path) => IsGuidArtifact(path, ".json");
 
     private static bool IsOwnedPngFile(string path) => IsGuidArtifact(path, ".png");
@@ -321,6 +323,25 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         catch (Exception exception) when (IsRecoverableFileException(exception))
         {
             // Cleanup is best effort; a locked or disappearing artifact is safe to revisit later.
+        }
+    }
+
+
+    // File.Delete already tolerates a missing FILE; it only throws DirectoryNotFoundException
+    // when the containing directory itself is gone (e.g. the user cleared %LOCALAPPDATA%, or a
+    // fresh store has never created its history folder). DeleteAsync's contract says missing
+    // artifacts are ignored, so that case is swallowed here too. Anything else (a locked or
+    // access-denied file) is intentionally left to propagate: MainViewModel.DeleteItemAsync
+    // catches it and tells the user to close other apps and try again.
+    private static void DeleteArtifactIgnoringMissingDirectory(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // The history directory does not exist; there is nothing to delete.
         }
     }
 

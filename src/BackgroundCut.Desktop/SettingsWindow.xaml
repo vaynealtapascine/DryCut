@@ -29,11 +29,13 @@
                           Margin="0,8,0,4"/>
                 <TextBlock Text="{Binding PolicyDescription}" Foreground="#51606F"/>
 
-                <TextBlock Text="Default folder" FontWeight="SemiBold" Margin="0,22,0,8"/>
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseCommand}"/>
-                    <TextBox Text="{Binding Folder, UpdateSourceTrigger=PropertyChanged}" Padding="9" VerticalContentAlignment="Center"/>
-                </DockPanel>
+                <StackPanel Visibility="{Binding UsesDefaultFolder, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="Default folder" FontWeight="SemiBold" Margin="0,22,0,8"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseCommand}"/>
+                        <TextBox Text="{Binding Folder, UpdateSourceTrigger=PropertyChanged}" Padding="9" VerticalContentAlignment="Center"/>
+                    </DockPanel>
+                </StackPanel>
 
                 <Separator Margin="0,24"/>
                 <TextBlock Text="Quality models" FontWeight="SemiBold"/>

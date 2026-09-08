@@ -27,12 +27,16 @@ function Copy-VerifiedArtifact([string]$Source, [string]$Destination, [string]$E
     Write-Host "Verified ${Label}: $sourcePath"
 }
 
+$infrastructureTestProject = Join-Path $repo 'tests\BackgroundCut.Infrastructure.Tests\BackgroundCut.Infrastructure.Tests.csproj'
+
 if ($DryRun) {
     Write-Host "DRY RUN: dotnet test $(Join-Path $repo 'BackgroundCut.sln') --configuration Release"
     & (Join-Path $PSScriptRoot 'publish-win-x64.ps1') -Version $Version -DryRun
     if ($DefaultModelPath) { Write-Host "DRY RUN: would verify and copy the supplied default model." }
     else { & (Join-Path $PSScriptRoot 'download-model.ps1') -DryRun }
     if ($StrongModelPath) { Write-Host "DRY RUN: would verify and include the supplied strong model." }
+    Write-Host "DRY RUN: would set BACKGROUNDCUT_TEST_MODEL to the verified default model and re-run dotnet test $infrastructureTestProject --configuration Release to gate the release on a real inference pass."
+    if ($StrongModelPath) { Write-Host "DRY RUN: would also set BACKGROUNDCUT_TEST_STRONG_MODEL to the verified strong model and include it in that gating test run." }
     & (Join-Path $PSScriptRoot 'assemble-notices.ps1') -DryRun
     & (Join-Path $PSScriptRoot 'make-portable-zip.ps1') -DryRun
     & (Join-Path $PSScriptRoot 'generate-checksums.ps1') -DryRun
@@ -59,6 +63,23 @@ if ($LASTEXITCODE -ne 0) { throw 'Publish step failed.' }
 if ($DefaultModelPath) { Copy-VerifiedArtifact $DefaultModelPath $fastDestination $fastHash 'default model' }
 else { & (Join-Path $PSScriptRoot 'download-model.ps1') -Destination $fastDestination }
 if ($StrongModelPath) { Copy-VerifiedArtifact $StrongModelPath $strongDestination $strongHash 'strong model' }
+
+# By this point a real, checksum-verified model file is on disk at $fastDestination (and, if
+# supplied, $strongDestination). The smoke tests
+# (RealModelSmokeSkipsUnlessBackgroundcutTestModelIsSet and its strong-model counterpart) report
+# "passed" without touching a model unless these env vars are set, so a release must not be
+# produced without re-running them against the real bundled model: that is what would have caught
+# a hardcoded tensor name/dtype mismatch before it reached a user's install.
+$env:BACKGROUNDCUT_TEST_MODEL = $fastDestination
+if ($StrongModelPath) { $env:BACKGROUNDCUT_TEST_STRONG_MODEL = $strongDestination }
+try {
+    dotnet test $infrastructureTestProject --configuration Release
+    if ($LASTEXITCODE -ne 0) { throw 'Model-backed smoke test gate failed: the bundled model did not load or produce a plausible mask.' }
+}
+finally {
+    Remove-Item Env:\BACKGROUNDCUT_TEST_MODEL -ErrorAction SilentlyContinue
+    Remove-Item Env:\BACKGROUNDCUT_TEST_STRONG_MODEL -ErrorAction SilentlyContinue
+}
 
 & (Join-Path $PSScriptRoot 'assemble-notices.ps1') -Output (Join-Path $staging 'THIRD-PARTY-NOTICES.txt')
 & (Join-Path $PSScriptRoot 'make-portable-zip.ps1') -SourceDir $staging -Output (Join-Path $artifacts "BackgroundCut-portable-$Version.zip")

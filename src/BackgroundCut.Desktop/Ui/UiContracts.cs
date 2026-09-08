@@ -5,8 +5,6 @@ using BackgroundCut.Domain.Models;
 
 namespace BackgroundCut.Desktop.Ui;
 
-public enum WorkflowState { Empty, Working, Result, Error }
-
 public sealed record Choice<T>(T Value, string Name);
 
 public interface IFileDialogService

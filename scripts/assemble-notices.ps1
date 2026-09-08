@@ -42,6 +42,12 @@ foreach ($key in ($packages.Keys | Sort-Object)) {
     $license = 'See package metadata.'
     $licenseUrl = $null
     $projectUrl = $null
+    # Reset per iteration: loop bodies share one scope, so without this a package that has no
+    # .nuspec in the local cache (routine for transitive packages) would silently reuse the
+    # PREVIOUS package's $licenseNode/$licensePath below and misattribute its license text, or
+    # trip Set-StrictMode on the first such package.
+    $licenseNode = $null
+    $licensePath = $null
     if ($nuspec) {
         [xml]$metadata = Get-Content -Raw -LiteralPath $nuspec.FullName
         $licenseNode = $metadata.SelectSingleNode("//*[local-name()='metadata']/*[local-name()='license']")
@@ -60,7 +66,7 @@ foreach ($key in ($packages.Keys | Sort-Object)) {
     $lines.Add("License: $license")
     if ($licenseUrl) { $lines.Add("License URL: $licenseUrl") }
     if ($projectUrl) { $lines.Add("Project: $projectUrl") }
-    if ($licenseNode -and $licenseNode.type -eq 'file' -and (Test-Path -LiteralPath $licensePath)) {
+    if ($licenseNode -and $licenseNode.type -eq 'file' -and $licensePath -and (Test-Path -LiteralPath $licensePath)) {
         $lines.Add('')
         $lines.Add((Get-Content -Raw -LiteralPath $licensePath))
     }

@@ -121,10 +121,247 @@ public sealed class InfrastructureTests
     }
 
     [Fact]
-    public async Task RealModelSmokeIsOptIn()
+    public async Task DownloadRestartsInsteadOfLoopingOn416WhenPartialAlreadyMatchesTargetLength()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "BackgroundCut-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var content = new byte[] { 1, 2, 3, 4 };
+            var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)).ToLowerInvariant();
+            var artifact = new ModelArtifact(
+                ModelKind.HighestQuality,
+                "resume-416.onnx",
+                new Uri("https://example.invalid/model.onnx"),
+                content.Length,
+                sha,
+                "MIT");
+            // A stale .partial whose length already equals the target length slips past the
+            // `existing > artifact.Length` guard, so a Range request goes out and HuggingFace-style
+            // servers answer 416 for it. This used to loop forever; it must now restart from scratch.
+            await File.WriteAllBytesAsync(Path.Combine(directory, "resume-416.onnx.partial"), new byte[] { 9, 9, 9, 9 });
+            using var handler = new RangeAwareHandler(content, System.Net.HttpStatusCode.RequestedRangeNotSatisfiable);
+            using var client = new HttpClient(handler);
+            var downloader = new ModelDownloader(client);
+
+            var path = await downloader.DownloadAsync(artifact, directory);
+
+            Assert.True(File.Exists(path));
+            Assert.Equal(content, await File.ReadAllBytesAsync(path));
+            Assert.True(handler.SawRangeRequest);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadRestartsWhenServerIgnoresRequestedResumeOffset()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "BackgroundCut-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var content = Enumerable.Range(0, 16).Select(i => (byte)i).ToArray();
+            var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)).ToLowerInvariant();
+            var artifact = new ModelArtifact(
+                ModelKind.HighestQuality,
+                "resume-rebase.onnx",
+                new Uri("https://example.invalid/model.onnx"),
+                content.Length,
+                sha,
+                "MIT");
+            // A partial with 8 bytes already downloaded; the server will claim 206 but re-base to 0
+            // instead of honoring the requested offset. The client must detect the mismatch and restart.
+            await File.WriteAllBytesAsync(Path.Combine(directory, "resume-rebase.onnx.partial"), content.Take(8).ToArray());
+            using var handler = new MismatchedContentRangeHandler(content);
+            using var client = new HttpClient(handler);
+            var downloader = new ModelDownloader(client);
+
+            var path = await downloader.DownloadAsync(artifact, directory);
+
+            Assert.True(File.Exists(path));
+            Assert.Equal(content, await File.ReadAllBytesAsync(path));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PngExportAskEveryTimeOverwritesTheExactRequestedPath()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "backgroundcut-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var requestedPath = Path.Combine(folder, "chosen.png");
+        // Simulate the user picking an existing file in the "Save as..." dialog and confirming the
+        // dialog's own overwrite prompt.
+        await File.WriteAllBytesAsync(requestedPath, new byte[] { 9 });
+        var image = new ProcessedImage(new byte[] { 1, 2, 3, 0 }, 1, 1);
+        var request = new ExportRequest(ExportPolicy.AskEveryTime, null, null, RequestedPath: requestedPath);
+
+        var result = await new PngExportService().ExportAsync(image, request, CancellationToken.None);
+
+        Assert.Equal(requestedPath, result.Path);
+        Assert.False(File.Exists(Path.Combine(folder, "chosen (2).png")));
+        using var decoded = await Image.LoadAsync<Rgba32>(result.Path);
+        Assert.Equal((byte)0, decoded[0, 0].A);
+    }
+
+    private static readonly int[] Dims1x1x1 = { 1 };
+    private static readonly int[] Dims1x3x1024x1024 = { 1, 3, 1024, 1024 };
+    private static readonly int[] Dims1x1x1024x1024 = { 1, 1, 1024, 1024 };
+    private static readonly int[] Dims1x1x512x512 = { 1, 1, 512, 512 };
+    private static readonly int[] Dims1x64x128x128 = { 1, 64, 128, 128 };
+    private static readonly int[] Dims2x3 = { 2, 3 };
+
+    [Fact]
+    public void ResolveInputNameReturnsTheSoleInputRegardlessOfName()
+    {
+        var inputs = new[] { new OnnxBackgroundRemovalEngine.TensorInfo("pixel_values", Dims1x3x1024x1024, typeof(float)) };
+        Assert.Equal("pixel_values", OnnxBackgroundRemovalEngine.ResolveInputName(inputs, "input"));
+    }
+
+    [Fact]
+    public void ResolveInputNamePrefersTheProfileNameWhenSeveralInputsExist()
+    {
+        var inputs = new[]
+        {
+            new OnnxBackgroundRemovalEngine.TensorInfo("some_other_input", Dims1x3x1024x1024, typeof(float)),
+            new OnnxBackgroundRemovalEngine.TensorInfo("input_image", Dims1x3x1024x1024, typeof(float)),
+        };
+        Assert.Equal("input_image", OnnxBackgroundRemovalEngine.ResolveInputName(inputs, "input_image"));
+    }
+
+    [Fact]
+    public void ResolveInputNameFallsBackToTheFirstFourDimensionalFloatInputWhenNoneMatchesThePreferredName()
+    {
+        var inputs = new[]
+        {
+            new OnnxBackgroundRemovalEngine.TensorInfo("scale_factor", Dims1x1x1, typeof(float)),
+            new OnnxBackgroundRemovalEngine.TensorInfo("pixel_values", Dims1x3x1024x1024, typeof(float)),
+        };
+        Assert.Equal("pixel_values", OnnxBackgroundRemovalEngine.ResolveInputName(inputs, "input"));
+    }
+
+    [Fact]
+    public void ResolveInputNameAcceptsAFloat16FourDimensionalInputAsFallback()
+    {
+        var inputs = new[]
+        {
+            new OnnxBackgroundRemovalEngine.TensorInfo("scale_factor", Dims1x1x1, typeof(float)),
+            new OnnxBackgroundRemovalEngine.TensorInfo("pixel_values", Dims1x3x1024x1024, typeof(Microsoft.ML.OnnxRuntime.Float16)),
+        };
+        Assert.Equal("pixel_values", OnnxBackgroundRemovalEngine.ResolveInputName(inputs, "input"));
+    }
+
+    [Fact]
+    public void ResolveInputNameThrowsADiagnosableExceptionWhenNothingMatches()
+    {
+        var inputs = new[]
+        {
+            new OnnxBackgroundRemovalEngine.TensorInfo("a", Dims1x1x1, typeof(float)),
+            new OnnxBackgroundRemovalEngine.TensorInfo("b", Dims1x1x1, typeof(int)),
+        };
+        var ex = Assert.Throws<InvalidOperationException>(() => OnnxBackgroundRemovalEngine.ResolveInputName(inputs, "input"));
+        Assert.Contains("image input tensor", ex.Message);
+    }
+
+    [Fact]
+    public void ResolveInputNameThrowsWhenThereAreNoInputs()
+    {
+        Assert.Throws<InvalidOperationException>(() => OnnxBackgroundRemovalEngine.ResolveInputName(Array.Empty<OnnxBackgroundRemovalEngine.TensorInfo>(), "input"));
+    }
+
+    [Fact]
+    public void ResolveOutputNameReturnsTheSoleOutputRegardlessOfName()
+    {
+        var outputs = new[] { new OnnxBackgroundRemovalEngine.TensorInfo("logits", Dims1x1x1024x1024, typeof(float)) };
+        Assert.Equal("logits", OnnxBackgroundRemovalEngine.ResolveOutputName(outputs, "output"));
+    }
+
+    [Fact]
+    public void ResolveOutputNamePrefersTheProfileNameWhenSeveralOutputsExist()
+    {
+        var outputs = new[]
+        {
+            new OnnxBackgroundRemovalEngine.TensorInfo("aux_supervision_head", Dims1x1x512x512, typeof(float)),
+            new OnnxBackgroundRemovalEngine.TensorInfo("output_image", Dims1x1x1024x1024, typeof(float)),
+        };
+        Assert.Equal("output_image", OnnxBackgroundRemovalEngine.ResolveOutputName(outputs, "output_image"));
+    }
+
+    [Fact]
+    public void ResolveOutputNameFallsBackToTheFirstFourDimensionalSingleChannelMaskWhenNoneMatchesThePreferredName()
+    {
+        var outputs = new[]
+        {
+            new OnnxBackgroundRemovalEngine.TensorInfo("feature_map", Dims1x64x128x128, typeof(float)),
+            new OnnxBackgroundRemovalEngine.TensorInfo("mask_head", Dims1x1x1024x1024, typeof(float)),
+        };
+        Assert.Equal("mask_head", OnnxBackgroundRemovalEngine.ResolveOutputName(outputs, "output"));
+    }
+
+    [Fact]
+    public void ResolveOutputNameThrowsADiagnosableExceptionWhenNothingMatches()
+    {
+        var outputs = new[]
+        {
+            new OnnxBackgroundRemovalEngine.TensorInfo("a", Dims1x64x128x128, typeof(float)),
+            new OnnxBackgroundRemovalEngine.TensorInfo("b", Dims2x3, typeof(float)),
+        };
+        var ex = Assert.Throws<InvalidOperationException>(() => OnnxBackgroundRemovalEngine.ResolveOutputName(outputs, "output"));
+        Assert.Contains("mask output tensor", ex.Message);
+    }
+
+    [Fact]
+    public void ResolveOutputNameThrowsWhenThereAreNoOutputs()
+    {
+        Assert.Throws<InvalidOperationException>(() => OnnxBackgroundRemovalEngine.ResolveOutputName(Array.Empty<OnnxBackgroundRemovalEngine.TensorInfo>(), "output"));
+    }
+
+    [Fact]
+    public void IsNetProfileStillUsesItsHistoricalInputAndOutputNames()
+    {
+        var profile = OnnxBackgroundRemovalEngine.ModelProfile.For(ModelKind.FastAndAccurate);
+        Assert.Equal("input", profile.InputName);
+        Assert.Equal("output", profile.OutputName);
+        Assert.False(profile.OutputIsLogits);
+    }
+
+    [Fact]
+    public void BiRefNetProfileStillUsesItsHistoricalInputAndOutputNamesAndLogitsOutput()
+    {
+        var profile = OnnxBackgroundRemovalEngine.ModelProfile.For(ModelKind.HighestQuality);
+        Assert.Equal("input_image", profile.InputName);
+        Assert.Equal("output_image", profile.OutputName);
+        Assert.True(profile.OutputIsLogits);
+    }
+
+    [Fact]
+    public void DisposeDuringInFlightProcessingDoesNotHangIndefinitely()
+    {
+        var engine = new OnnxBackgroundRemovalEngine();
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        engine.Dispose();
+        stopwatch.Stop();
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), "Dispose must not block indefinitely.");
+        engine.Dispose();
+    }
+
+    [Fact]
+    public async Task RealModelSmokeSkipsUnlessBackgroundcutTestModelIsSet()
     {
         var model = Environment.GetEnvironmentVariable("BACKGROUNDCUT_TEST_MODEL");
-        if (string.IsNullOrWhiteSpace(model)) return;
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            Console.WriteLine("SKIPPED — env var BACKGROUNDCUT_TEST_MODEL not set; the real-model smoke test did not run.");
+            return;
+        }
         var imagePath = Path.Combine(Path.GetTempPath(), "backgroundcut-smoke.png");
         using (var image = new Image<Rgba32>(512, 512, new Rgba32(255, 255, 255, 255)))
         {
@@ -151,10 +388,14 @@ public sealed class InfrastructureTests
     }
 
     [Fact]
-    public async Task StrongModelSmokeIsOptIn()
+    public async Task StrongModelSmokeSkipsUnlessBackgroundcutTestStrongModelIsSet()
     {
         var model = Environment.GetEnvironmentVariable("BACKGROUNDCUT_TEST_STRONG_MODEL");
-        if (string.IsNullOrWhiteSpace(model)) return;
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            Console.WriteLine("SKIPPED — env var BACKGROUNDCUT_TEST_STRONG_MODEL not set; the strong-model smoke test did not run.");
+            return;
+        }
         var imagePath = Path.Combine(Path.GetTempPath(), "backgroundcut-strong-smoke.png");
         using (var image = new Image<Rgba32>(512, 512, new Rgba32(245, 245, 245, 255)))
         {
@@ -185,5 +426,45 @@ public sealed class InfrastructureTests
             {
                 Content = new ByteArrayContent(content)
             });
+    }
+
+    /// <summary>Answers ranged requests with a fixed status (e.g. 416) and unranged requests with the full body.</summary>
+    private sealed class RangeAwareHandler(byte[] content, System.Net.HttpStatusCode rangeResponseStatus) : HttpMessageHandler
+    {
+        public bool SawRangeRequest { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.Headers.Range is not null)
+            {
+                SawRangeRequest = true;
+                return Task.FromResult(new HttpResponseMessage(rangeResponseStatus));
+            }
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(content)
+            });
+        }
+    }
+
+    /// <summary>Simulates a server that answers 206 to a ranged request but re-bases the range to 0 instead of honoring the requested offset.</summary>
+    private sealed class MismatchedContentRangeHandler(byte[] content) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.Headers.Range is not null)
+            {
+                var response = new HttpResponseMessage(System.Net.HttpStatusCode.PartialContent)
+                {
+                    Content = new ByteArrayContent(content)
+                };
+                response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(0, content.Length - 1, content.Length);
+                return Task.FromResult(response);
+            }
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(content)
+            });
+        }
     }
 }

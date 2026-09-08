@@ -39,12 +39,29 @@ public sealed class JsonSettingsStore : ISettingsStore
         var directory = Path.GetDirectoryName(Path.GetFullPath(_path))!;
         Directory.CreateDirectory(directory);
         var temporary = _path + ".tmp-" + Guid.NewGuid().ToString("N");
-        await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, settings, JsonOptions, cancellationToken).ConfigureAwait(false);
-            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
+            {
+                await JsonSerializer.SerializeAsync(stream, settings, JsonOptions, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+            File.Move(temporary, _path, overwrite: true);
         }
-        File.Move(temporary, _path, overwrite: true);
+        catch
+        {
+            try
+            {
+                if (File.Exists(temporary)) File.Delete(temporary);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+            throw;
+        }
     }
 }
 
@@ -71,17 +88,24 @@ public sealed class PngExportService : IExportService
         if (string.IsNullOrWhiteSpace(folder) || (request.Policy == ExportPolicy.AskEveryTime && string.IsNullOrWhiteSpace(request.RequestedPath)))
             throw new InvalidOperationException("An export destination is required.");
         Directory.CreateDirectory(folder);
-        var destination = request.Policy == ExportPolicy.AskEveryTime && request.RequestedPath is not null
-            ? request.RequestedPath
+        // When the user picked an exact path via "Save as..." (AskEveryTime), the OS save dialog already
+        // owns the overwrite decision - honour that path exactly rather than silently redirecting to a
+        // collision-safe "name (2).png". The collision-safe suffix only applies to the automatic
+        // DefaultFolder/SourceFolder policies, where there was no user-facing overwrite prompt.
+        var honoursRequestedPath = request.Policy == ExportPolicy.AskEveryTime && request.RequestedPath is not null;
+        var destination = honoursRequestedPath
+            ? request.RequestedPath!
             : CreateCollisionSafePath(folder, requestedName);
-        if (request.Policy == ExportPolicy.AskEveryTime && File.Exists(destination))
-            destination = CreateCollisionSafePath(folder, requestedName);
         var temporary = destination + ".tmp-" + Guid.NewGuid().ToString("N");
         try
         {
             await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 await ImageSharpImageService.SavePngAsync(image, stream, cancellationToken).ConfigureAwait(false);
-            File.Move(temporary, destination);
+            // Only a path the user chose in the OS save dialog may replace an existing file - they
+            // already confirmed that overwrite there. A generated collision-safe name must never
+            // overwrite, so a file appearing at that path since the check is left to throw rather
+            // than be silently clobbered.
+            File.Move(temporary, destination, overwrite: honoursRequestedPath);
             return new ExportedFile(destination);
         }
         finally

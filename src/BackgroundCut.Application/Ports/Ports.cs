@@ -49,7 +49,8 @@ public interface IProcessedImageHistoryStore
     /// <summary>Deletes one item and its persisted artifacts. Missing artifacts are ignored.</summary>
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 
-    /// <summary>Removes items strictly older than the retention boundary.</summary>
+    /// <summary>Removes visible items strictly older than the retention boundary and stale temporary files.</summary>
+    /// <remarks>Unpaired PNGs are preserved because a user may have manually exported one into the history folder.</remarks>
     Task<int> CleanupAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
 }
 

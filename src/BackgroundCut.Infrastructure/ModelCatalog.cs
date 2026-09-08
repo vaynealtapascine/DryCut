@@ -131,12 +131,23 @@ public sealed class ModelDownloader(HttpClient httpClient)
         var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         try
         {
-            if (existing > 0 && response.StatusCode == System.Net.HttpStatusCode.OK)
+            if (existing > 0)
             {
-                existing = 0;
-                using var restart = new HttpRequestMessage(HttpMethod.Get, artifact.DownloadUri);
-                response.Dispose();
-                response = await _httpClient.SendAsync(restart, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                // The resume is only valid if the server actually honored the byte range we asked for
+                // (206 with a matching Content-Range start). Anything else - a 416 because our .partial's
+                // length already equals the target length, a 200 because the server ignored the range
+                // entirely, or a 206 that re-based/ignored the requested offset - means we cannot safely
+                // append to the existing .partial, so start over from scratch.
+                var rangeHonored = response.StatusCode == System.Net.HttpStatusCode.PartialContent
+                    && response.Content.Headers.ContentRange?.From == existing;
+                if (!rangeHonored)
+                {
+                    existing = 0;
+                    if (File.Exists(partial)) File.Delete(partial);
+                    using var restart = new HttpRequestMessage(HttpMethod.Get, artifact.DownloadUri);
+                    response.Dispose();
+                    response = await _httpClient.SendAsync(restart, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                }
             }
             response.EnsureSuccessStatusCode();
             await using var body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
