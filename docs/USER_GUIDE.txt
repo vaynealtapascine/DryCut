@@ -8,6 +8,7 @@ BackgroundCut removes image backgrounds on your Windows PC. Processing is local:
 OPEN OR QUEUE IMAGES
 --------------------
 - Drag one or several images onto the BackgroundCut window, or select "Choose images". The file picker supports multi-select.
+- Press Ctrl+V (Cmd+V on macOS) to paste an image straight into the queue. This works both for a file copied in Explorer/Finder and for raw image data copied from another app. Paste does nothing while a text box has focus, so it never interferes with typing.
 - Supported formats: PNG, JPEG, WebP, BMP, and TIFF.
 - You can also right-click an image in Explorer after enabling the optional context-menu item in Settings. On Windows 11, the item may appear under "Show more options".
 
@@ -32,7 +33,14 @@ Edge detail:
 - Soft: gently soften rough edges.
 - Detailed: spend more time preserving fine edge detail.
 
-Newly queued images use the current choices. To run the selected current-session image again, select "Reprocess selected".
+Newly queued images use the current choices. To run the selected image again with the current choices, select "Reprocess". This does not re-import the image; it reuses the file already in the queue or gallery.
+
+PANEL MODE
+----------
+- Select "Panel mode" in the header to shrink the window to a narrow strip you can park beside another app while you work. Select the expand icon in the panel header to switch back to the full window.
+- The panel keeps the queue/gallery, the before/after preview, and the Quality/Edges controls, arranged vertically to fit the narrower width.
+- The pin icon in the panel header keeps BackgroundCut on top of other windows. Select it again to turn that off.
+- Panel mode remembers the width you last resized it to, and reopens in the same mode you left it in.
 
 EXPORT
 ------
@@ -54,6 +62,14 @@ Open Settings, scroll to the Explorer option, enable it, and save. This is a per
 OPTIONAL STRONG MODEL
 ---------------------
 Open Settings and select "Download highest quality". The download is approximately 467 MB. BackgroundCut checks a pinned SHA-256 hash before installing it. A partial or invalid download is deleted.
+
+KEYBOARD SHORTCUTS
+------------------
+- Ctrl+O (Cmd+O on macOS): choose images.
+- Ctrl+S (Cmd+S on macOS): save.
+- Ctrl+N (Cmd+N on macOS): choose more images.
+- Ctrl+V (Cmd+V on macOS): paste an image from the clipboard. Ignored while a text box has focus.
+- Escape: cancel the image currently processing.
 
 PRIVACY
 -------
