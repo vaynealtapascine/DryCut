@@ -1,8 +1,8 @@
 # BackgroundCut — Architecture
 
-Status: implementation baseline  
-Target: Windows 10 19041+ / Windows 11, x64  
-Runtime: .NET 8 WPF, self-contained deployment
+Status: implementation baseline
+Target: Windows, macOS, and Linux desktop
+Runtime: .NET 8 with Avalonia 11; self-contained Windows deployment
 
 ## 1. Product intent
 
@@ -14,15 +14,15 @@ BackgroundCut is a local-first desktop utility that removes image backgrounds wi
 2. **Fast by default:** use the bundled quantized IS-Net model and DirectML when available; fall back to CPU automatically.
 3. **Quality on demand:** offer optional BiRefNet FP16 as a stronger, larger model and adjustable edge refinement.
 4. **Recoverable interactions:** no destructive overwrite; clear errors; cancellation; settings persist.
-5. **Native Windows integration:** drag/drop, clipboard, file picker, Explorer context menu, one-file installer.
+5. **Desktop integration:** drag/drop, clipboard, and file picker across platforms; Explorer context menu and one-file installer on Windows.
 6. **No technical setup:** self-contained runtime and bundled default model.
 
 ## 2. Chosen stack
 
-- **UI:** WPF on .NET 8 (`net8.0-windows`), MVVM without a framework.
-- **Inference:** Microsoft ONNX Runtime DirectML with automatic CPU fallback.
-- **Image processing:** SixLabors.ImageSharp for decode/resize/mask/composition/PNG output; WPF imaging only at the UI boundary.
-- **Settings:** versioned JSON under `%LocalAppData%\BackgroundCut\settings.json`; processed-image history under `%LocalAppData%\BackgroundCut\history`.
+- **UI:** Avalonia 11 on .NET 8 (`net8.0`), MVVM without an additional framework.
+- **Inference:** Microsoft ONNX Runtime, preferring DirectML on Windows and using CPU elsewhere or when acceleration is unavailable.
+- **Image processing:** SixLabors.ImageSharp for decode/resize/mask/composition/PNG output; Avalonia bitmaps only at the UI boundary.
+- **Settings:** versioned JSON under the platform's local-application-data `BackgroundCut` directory; processed-image history beside it.
 - **Models:** bundled IS-Net q8 (Apache-2.0); optional BiRefNet FP16 (MIT upstream, downloaded after explicit user action).
 - **Installer:** Inno Setup, per-user by default, producing one signed-ready `.exe`; includes application, .NET runtime, default model, licenses, and optional Explorer integration task.
 - **Tests:** xUnit for core/application logic plus a deterministic fake inference service; smoke test against the real ONNX model.
@@ -47,14 +47,14 @@ BackgroundCut.Infrastructure
   Implements Application ports.
 
 BackgroundCut.Desktop
-  WPF composition root, views, view-models, dialogs, drag/drop, progress,
+  Avalonia composition root, views, view-models, dialogs, drag/drop, progress,
   single-instance/command-line handoff. Depends on Application and
   Infrastructure.
 ```
 
 ### Dependency rule
 
-Dependencies point inward. Domain is dependency-free. Application cannot reference WPF, ImageSharp, ONNX Runtime, registry APIs, or concrete filesystem paths.
+Dependencies point inward. Domain is dependency-free. Application cannot reference Avalonia, ImageSharp, ONNX Runtime, registry APIs, or concrete filesystem paths.
 
 ## 4. Runtime flow
 
@@ -117,7 +117,7 @@ The implementation must avoid globally blurring the matte. Refinement works only
 
 Available actions:
 
-- **Copy image:** place a PNG-capable image and Windows bitmap representation on the clipboard.
+- **Copy image:** place PNG image data on the system clipboard, with a compatible bitmap representation where the platform supports it.
 - **Save:** according to one of three persisted policies:
   - default folder (`Pictures\BackgroundCut` by default, configurable);
   - source image folder;
@@ -146,7 +146,7 @@ One process owns a named mutex. Later launches send the canonical path over a na
 
 - Perform decode, inference, and refinement off the UI thread.
 - Cache one active inference session; dispose it when the model changes.
-- Prefer DirectML device 0; retry once with CPU if provider/session creation or inference fails.
+- On Windows, prefer DirectML device 0 and retry once with CPU if provider/session creation or inference fails; use CPU directly on other platforms.
 - Bound image dimensions and decoded pixel count to prevent accidental memory exhaustion; show a useful message.
 - Cancellation is cooperative between phases; inference itself may complete before cancellation is observed.
 - Use atomic temp-file + move for model downloads and settings writes.

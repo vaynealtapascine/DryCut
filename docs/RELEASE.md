@@ -52,7 +52,7 @@ The lower-level scripts can be run independently for troubleshooting:
 They use strict error handling and stop on missing inputs, failed commands, or
 checksum mismatches. `publish-win-x64.ps1` deliberately fails if the Desktop
 project does not produce `BackgroundCut.Desktop.exe`; this prevents a plausible
-but unusable release while the WPF implementation is incomplete.
+but unusable release while the desktop implementation is incomplete.
 
 ## Expected output
 

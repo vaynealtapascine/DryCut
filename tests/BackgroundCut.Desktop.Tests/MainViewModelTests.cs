@@ -1,17 +1,18 @@
 using System.IO;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using Avalonia.Headless.XUnit;
+using Avalonia.Media.Imaging;
 using BackgroundCut.Application.Ports;
 using BackgroundCut.Application.UseCases;
 using BackgroundCut.Desktop.Ui;
 using BackgroundCut.Domain.Models;
+using BackgroundCut.Infrastructure;
 using Xunit;
 
 namespace BackgroundCut.Desktop.Tests;
 
 public sealed class MainViewModelTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void UnsupportedDropEntersErrorStateWithoutStartingEngine()
     {
         var engine = new FakeEngine();
@@ -24,7 +25,7 @@ public sealed class MainViewModelTests
         Assert.Contains("isn't supported", vm.Status);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DefaultsUseApproachableQualityCopy()
     {
         using var vm = CreateViewModel(new FakeEngine());
@@ -36,7 +37,7 @@ public sealed class MainViewModelTests
         Assert.Contains("30 days", vm.RetentionNotice);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task UnsupportedDropDoesNotCoverAnExistingResultPanel()
     {
         var history = new HistoryStore();
@@ -51,7 +52,7 @@ public sealed class MainViewModelTests
         Assert.Contains("isn't supported", vm.Status);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task EtaWarmsUpAgainForAProcessingProfileWithoutSamples()
     {
         var paths = CreateInputFiles(2);
@@ -74,7 +75,7 @@ public sealed class MainViewModelTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task MultipleDropsAreProcessedSequentiallyAndPersisted()
     {
         var paths = CreateInputFiles(3);
@@ -102,7 +103,7 @@ public sealed class MainViewModelTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task PersistenceFailureKeepsResultCopyableAndWarnsAfterQueueFinishes()
     {
         var paths = CreateInputFiles(1);
@@ -127,7 +128,32 @@ public sealed class MainViewModelTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
+    public async Task RetryReplacesTheFailedEntryInsteadOfLeavingADuplicate()
+    {
+        var paths = CreateInputFiles(1);
+        var engine = new FakeEngine(failuresBeforeSuccess: 1);
+        using var vm = CreateViewModel(engine);
+
+        try
+        {
+            vm.DropPath(paths[0]);
+            await vm.WhenQueueIsIdleAsync();
+            Assert.True(Assert.Single(vm.VisibleItems).HasFailed);
+
+            vm.RetryCommand.Execute(null);
+            await vm.WhenQueueIsIdleAsync();
+
+            Assert.True(Assert.Single(vm.VisibleItems).IsCompleted);
+            Assert.Equal(1, vm.TotalItemCount);
+        }
+        finally
+        {
+            DeleteInputFiles(paths);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task CancelDuringHistorySaveCancelsItemWithoutPersistingIt()
     {
         var paths = CreateInputFiles(1);
@@ -151,7 +177,7 @@ public sealed class MainViewModelTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DisposeCancelsAnInFlightQueueItem()
     {
         var paths = CreateInputFiles(1);
@@ -176,7 +202,7 @@ public sealed class MainViewModelTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DisposeRaisesCanAdjustQualityChangedAndDisablesIt()
     {
         var vm = CreateViewModel(new FakeEngine());
@@ -190,7 +216,7 @@ public sealed class MainViewModelTests
         Assert.Contains(nameof(MainViewModel.CanAdjustQuality), raisedProperties);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task StartupHistoryDisplaysOnlyFirstHundredItems()
     {
         var history = new HistoryStore();
@@ -220,7 +246,7 @@ public sealed class MainViewModelTests
         Assert.Equal("image-100.png", vm.VisibleItems[0].DisplayName);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task GalleryActionsCopyAndDeleteOneItem()
     {
         var history = new HistoryStore();
@@ -238,7 +264,7 @@ public sealed class MainViewModelTests
         Assert.Empty(history.Items);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task RetentionRefreshRemovesItemsThatExpireWhileAppRemainsOpen()
     {
         var history = new HistoryStore();
@@ -298,7 +324,10 @@ public sealed class MainViewModelTests
         public ModelDescriptor Resolve(ModelKind kind) => new(kind, kind.ToString(), kind.ToString(), true, true);
     }
 
-    private sealed class FakeEngine(TimeSpan? delay = null, bool blockUntilCancelled = false) : IBackgroundRemovalEngine
+    private sealed class FakeEngine(
+        TimeSpan? delay = null,
+        bool blockUntilCancelled = false,
+        int failuresBeforeSuccess = 0) : IBackgroundRemovalEngine
     {
         private int _concurrency;
         public bool Started { get; private set; }
@@ -323,6 +352,7 @@ public sealed class MainViewModelTests
                 progress?.Report(new ProcessingProgress("Removing the background…", 0.5));
                 if (blockUntilCancelled) await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                 if (delay is not null) await Task.Delay(delay.Value, cancellationToken);
+                if (failuresBeforeSuccess-- > 0) throw new InvalidOperationException("Simulated processing failure.");
                 return new ProcessedImage([1, 2, 3, 128], 1, 1);
             }
             finally
@@ -359,27 +389,27 @@ public sealed class MainViewModelTests
     {
         public IFileDialogService FileDialogs { get; } = new Dialogs();
         public IPreviewBitmapFactory Preview { get; } = new PreviewFactory();
-        public Task OpenSettingsAsync(System.Windows.Window owner) => Task.CompletedTask;
-        public void ShowMessage(System.Windows.Window owner, string message, string title) { }
+        public Task OpenSettingsAsync() => Task.CompletedTask;
     }
 
     private sealed class Dialogs : IFileDialogService
     {
-        public IReadOnlyList<string> PickImages() => [];
-        public string? PickSavePath(string suggestedName) => null;
-        public string? PickFolder(string? currentFolder) => null;
+        public Task<IReadOnlyList<string>> PickImagesAsync() => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<string?> PickSavePathAsync(string suggestedName) => Task.FromResult<string?>(null);
+        public Task<string?> PickFolderAsync(string? currentFolder) => Task.FromResult<string?>(null);
     }
 
     private sealed class PreviewFactory : IPreviewBitmapFactory
     {
-        public BitmapSource FromRgba(ProcessedImage image)
+        public Bitmap FromRgba(ProcessedImage image)
         {
-            var bitmap = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[4], 4);
-            bitmap.Freeze();
-            return bitmap;
+            using var stream = new MemoryStream();
+            ImageSharpImageService.SavePngAsync(image, stream).GetAwaiter().GetResult();
+            stream.Position = 0;
+            return new Bitmap(stream);
         }
 
-        public BitmapSource? FromFile(string path, int decodePixelWidth = 0) => null;
+        public Bitmap? FromFile(string path, int decodePixelWidth = 0) => null;
     }
 
     private sealed class HistoryStore : IProcessedImageHistoryStore

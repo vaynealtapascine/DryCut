@@ -1,9 +1,11 @@
-using System.Windows;
-using BackgroundCut.Desktop.Ui;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 
 namespace BackgroundCut.Desktop;
 
 public partial class SettingsWindow : Window
 {
-    public SettingsWindow() { InitializeComponent(); }
+    public SettingsWindow() => InitializeComponent();
+
+    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 }

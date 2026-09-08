@@ -62,6 +62,7 @@ public static class ProcessedImageHistoryPolicy
 
 public interface IExplorerIntegration
 {
+    bool IsSupported { get; }
     Task<bool> IsEnabledAsync(CancellationToken cancellationToken);
     Task EnableAsync(CancellationToken cancellationToken);
     Task DisableAsync(CancellationToken cancellationToken);

@@ -1,31 +1,41 @@
 using System.IO;
 using System.Net.Http;
-using System.Windows;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using BackgroundCut.Application.UseCases;
 using BackgroundCut.Desktop.Ui;
 using BackgroundCut.Infrastructure;
 
 namespace BackgroundCut.Desktop;
 
-public partial class App : System.Windows.Application, IDisposable
+public partial class App : Avalonia.Application, IDisposable
 {
     private SingleInstanceCoordinator? _instance;
     private OnnxBackgroundRemovalEngine? _engine;
     private HttpClient? _httpClient;
     private MainViewModel? _viewModel;
-    private bool _handlingDispatcherException;
+    private bool _disposed;
 
-    protected override void OnStartup(StartupEventArgs e)
+    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+
+    public override void OnFrameworkInitializationCompleted()
     {
-        base.OnStartup(e);
-        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
 
         _instance = new SingleInstanceCoordinator();
-        var requested = e.Args;
+        var requested = desktop.Args ?? [];
         if (!_instance.IsFirstInstance)
         {
             foreach (var path in requested) SingleInstanceCoordinator.TryHandoff(path);
-            Shutdown();
+            Dispatcher.UIThread.Post(() => desktop.Shutdown());
+            base.OnFrameworkInitializationCompleted();
             return;
         }
 
@@ -37,87 +47,45 @@ public partial class App : System.Windows.Application, IDisposable
             "models");
         var catalog = new FileModelCatalog(bundledModels, userModels);
         _httpClient = new HttpClient { Timeout = TimeSpan.FromHours(1) };
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BackgroundCut/0.1");
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BackgroundCut/1.0");
         var downloader = new ModelDownloader(_httpClient);
-        var executablePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "BackgroundCut.Desktop.exe");
-        var explorer = new WindowsExplorerIntegration(executablePath);
-        var services = new DesktopServices(settings, catalog, downloader, explorer);
+        var executablePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "BackgroundCut.Desktop");
+        var explorer = new PlatformExplorerIntegration(executablePath);
         var history = new FileProcessedImageHistoryStore();
         _engine = new OnnxBackgroundRemovalEngine();
+
+        MainWindow? window = null;
+        var services = new DesktopServices(() => window, settings, catalog, downloader, explorer);
         _viewModel = new MainViewModel(
             new RemoveBackgroundUseCase(_engine, catalog),
             new ExportImageUseCase(new PngExportService(), settings),
-            new WpfClipboardService(),
+            new AvaloniaClipboardService(() => window, services.Preview),
             settings,
             services,
             history);
 
-        var window = new MainWindow { DataContext = _viewModel };
-        MainWindow = window;
-        _instance.PathReceived += (_, path) =>
+        window = new MainWindow { DataContext = _viewModel };
+        desktop.MainWindow = window;
+        desktop.Exit += OnExit;
+        _instance.PathReceived += (_, path) => Dispatcher.UIThread.Post(() =>
         {
-            var dispatcher = window.Dispatcher;
-            if (dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished) return;
-            try
-            {
-                dispatcher.Invoke(() =>
-                {
-                    if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
-                    window.Show();
-                    window.Activate();
-                    window.Topmost = true;
-                    window.Topmost = false;
-                    _viewModel.DropPath(path);
-                });
-            }
-            catch (Exception)
-            {
-                // The app is shutting down and the dispatcher is no longer accepting work
-                // (the exact exception type varies with shutdown timing). This handler runs
-                // on a threadpool thread with nothing to report to, so we just drop the request.
-            }
-        };
-        window.Show();
+            if (_disposed || window is null) return;
+            if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+            if (!window.IsVisible) window.Show();
+            window.Activate();
+            _viewModel.DropPath(path);
+        });
+
         if (requested.Length > 0) _viewModel.DropPaths(requested);
+        base.OnFrameworkInitializationCompleted();
     }
 
-    private void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs args)
-    {
-        Console.Error.WriteLine(args.Exception);
-        if (_handlingDispatcherException)
-        {
-            args.Handled = false;
-            return;
-        }
-
-        _handlingDispatcherException = true;
-        try
-        {
-            System.Windows.MessageBox.Show(
-                "BackgroundCut ran into an unexpected problem. Your original image was not changed.\n\n" + args.Exception.Message,
-                "BackgroundCut",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            args.Handled = true;
-        }
-        catch
-        {
-            args.Handled = false;
-        }
-        finally
-        {
-            _handlingDispatcherException = false;
-        }
-    }
-
-    protected override void OnExit(ExitEventArgs e)
-    {
-        Dispose();
-        base.OnExit(e);
-    }
+    private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e) => Dispose();
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _viewModel?.Dispose();
         _engine?.Dispose();
         _httpClient?.Dispose();

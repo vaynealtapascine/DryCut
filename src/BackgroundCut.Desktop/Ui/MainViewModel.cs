@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.Windows.Media.Imaging;
-using System.Windows.Threading;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using BackgroundCut.Application.Ports;
 using BackgroundCut.Application.Queue;
 using BackgroundCut.Application.UseCases;
@@ -35,8 +35,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string _errorDetails = "";
     private ModelKind _model = ModelKind.FastAndAccurate;
     private RefinementPreset _refinement = RefinementPreset.Balanced;
-    private BitmapSource? _before;
-    private BitmapSource? _after;
+    private Bitmap? _before;
+    private Bitmap? _after;
     private bool _standaloneError;
     private bool _initialized;
     private bool _disposed;
@@ -59,28 +59,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _desktop = desktop ?? throw new ArgumentNullException(nameof(desktop));
         _history = history;
 
-        ChooseImageCommand = new RelayCommand(_ => ChooseImages());
+        ChooseImageCommand = new AsyncCommand(_ => ChooseImagesAsync());
         CopyCommand = new AsyncCommand(_ => CopyItemAsync(SelectedItem), _ => SelectedItem?.CanCopy == true);
         SaveCommand = new AsyncCommand(_ => SaveAsync(), _ => HasResult);
         SaveAsCommand = new AsyncCommand(_ => SaveAsAsync(), _ => HasResult);
         ApplyQualityCommand = new RelayCommand(_ => ReprocessSelected(), _ => CanReprocessSelected);
-        NewImageCommand = new RelayCommand(_ => ChooseImages());
+        NewImageCommand = new AsyncCommand(_ => ChooseImagesAsync());
         CancelCommand = new RelayCommand(_ => _activeCancellation?.Cancel(), _ => IsWorking);
         SettingsCommand = new AsyncCommand(_ => OpenSettingsAsync(), _ => !IsWorking);
-        RetryCommand = new RelayCommand(_ => RetrySelected(), _ => SelectedItem?.HasFailed == true && SelectedItem.SourcePath is not null);
+        RetryCommand = new AsyncCommand(_ => RetrySelectedAsync(), _ => SelectedItem?.HasFailed == true && SelectedItem.SourcePath is not null);
         SelectQueueItemCommand = new AsyncCommand(parameter => SelectItemAsync(parameter as QueueItemViewModel), parameter => parameter is QueueItemViewModel);
         CopyQueueItemCommand = new AsyncCommand(parameter => CopyItemAsync(parameter as QueueItemViewModel), parameter => parameter is QueueItemViewModel item && item.CanCopy);
         DeleteQueueItemCommand = new AsyncCommand(parameter => DeleteItemAsync(parameter as QueueItemViewModel), parameter => parameter is QueueItemViewModel item && item.CanDelete);
         ShowNewerItemsCommand = new RelayCommand(_ => ChangeGalleryPage(-1), _ => HasNewerItems);
         ShowOlderItemsCommand = new RelayCommand(_ => ChangeGalleryPage(1), _ => HasOlderItems);
 
-        _etaTimer = new DispatcherTimer(DispatcherPriority.Background)
+        _etaTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(1)
         };
         _etaTimer.Tick += OnEtaTick;
 
-        _retentionTimer = new DispatcherTimer(DispatcherPriority.ApplicationIdle)
+        _retentionTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromHours(1)
         };
@@ -115,8 +115,30 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public string ErrorDetails { get => _errorDetails; private set => Set(ref _errorDetails, value); }
     public double Progress => _activeItem?.Progress ?? 0;
     public string FileName => SelectedItem?.DisplayName ?? "";
-    public BitmapSource? Before { get => _before; private set { if (Set(ref _before, value)) Raise(nameof(HasBefore)); } }
-    public BitmapSource? After { get => _after; private set => Set(ref _after, value); }
+    public Bitmap? Before
+    {
+        get => _before;
+        private set
+        {
+            if (ReferenceEquals(_before, value)) return;
+            var previous = _before;
+            if (Set(ref _before, value))
+            {
+                previous?.Dispose();
+                Raise(nameof(HasBefore));
+            }
+        }
+    }
+    public Bitmap? After
+    {
+        get => _after;
+        private set
+        {
+            if (ReferenceEquals(_after, value)) return;
+            var previous = _after;
+            if (Set(ref _after, value)) previous?.Dispose();
+        }
+    }
     public int QueueCount => _pending.Count + (IsWorking ? 1 : 0);
     public int TotalItemCount => _allItems.Count;
     public int HiddenItemCount => Math.Max(0, TotalItemCount - VisibleItems.Count);
@@ -185,15 +207,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         new(RefinementPreset.Detailed, "Detailed")
     ];
 
-    public RelayCommand ChooseImageCommand { get; }
+    public AsyncCommand ChooseImageCommand { get; }
     public AsyncCommand CopyCommand { get; }
     public AsyncCommand SaveCommand { get; }
     public AsyncCommand SaveAsCommand { get; }
     public RelayCommand ApplyQualityCommand { get; }
-    public RelayCommand NewImageCommand { get; }
+    public AsyncCommand NewImageCommand { get; }
     public RelayCommand CancelCommand { get; }
     public AsyncCommand SettingsCommand { get; }
-    public RelayCommand RetryCommand { get; }
+    public AsyncCommand RetryCommand { get; }
     public AsyncCommand SelectQueueItemCommand { get; }
     public AsyncCommand CopyQueueItemCommand { get; }
     public AsyncCommand DeleteQueueItemCommand { get; }
@@ -272,11 +294,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void ChooseImages()
+    public async Task ChooseImagesAsync()
     {
         try
         {
-            EnqueuePaths(_desktop.FileDialogs.PickImages());
+            EnqueuePaths(await _desktop.FileDialogs.PickImagesAsync());
         }
         catch (Exception exception)
         {
@@ -445,7 +467,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     hadFailures = true;
                     _activeStopwatch.Stop();
-                    _activeEta.CancelActive();
+                    if (_activeEta.HasActiveItem)
+                        _activeEta.CancelActive();
                     item.MarkCancelled();
                     if (ReferenceEquals(SelectedItem, item))
                         Status = "Cancelled. Your original image is unchanged.";
@@ -454,15 +477,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     hadFailures = true;
                     _activeStopwatch.Stop();
-                    _activeEta.FailActive();
-                    item.MarkFailed("Highest quality needs a one-time download. Open Settings, download it, then try again.", exception);
+                    if (_activeEta.HasActiveItem)
+                        _activeEta.FailActive();
+                    var message = item.Options.Model == ModelKind.HighestQuality
+                        ? "Highest quality needs a one-time download. Open Settings, download it, then try again."
+                        : "The included fast model is missing from this installation. Reinstall BackgroundCut, then try again.";
+                    item.MarkFailed(message, exception);
                     SetSelectedError(item);
                 }
                 catch (Exception exception)
                 {
                     hadFailures = true;
                     _activeStopwatch.Stop();
-                    _activeEta.FailActive();
+                    if (_activeEta.HasActiveItem)
+                        _activeEta.FailActive();
                     item.MarkFailed("We couldn't remove the background. Try this image again or choose another one.", exception);
                     SetSelectedError(item);
                 }
@@ -607,10 +635,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             EnqueuePaths([path]);
     }
 
-    private void RetrySelected()
+    private async Task RetrySelectedAsync()
     {
-        if (SelectedItem?.SourcePath is string path)
-            EnqueuePaths([path]);
+        var item = SelectedItem;
+        if (item?.SourcePath is not string path) return;
+        await DeleteItemAsync(item);
+        EnqueuePaths([path]);
     }
 
     private async Task SaveAsync()
@@ -622,7 +652,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             string? requestedPath = null;
             if (settings.Policy == ExportPolicy.AskEveryTime)
             {
-                requestedPath = _desktop.FileDialogs.PickSavePath(GetSuggestedName());
+                requestedPath = await _desktop.FileDialogs.PickSavePathAsync(GetSuggestedName());
                 if (requestedPath is null) return;
             }
             await ExportAsync(requestedPath);
@@ -639,7 +669,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (SelectedItem is null) return;
         try
         {
-            var path = _desktop.FileDialogs.PickSavePath(GetSuggestedName());
+            var path = await _desktop.FileDialogs.PickSavePathAsync(GetSuggestedName());
             if (path is not null) await ExportAsync(path);
         }
         catch (Exception exception)
@@ -677,8 +707,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var owner = System.Windows.Application.Current?.MainWindow;
-            if (owner is not null) await _desktop.OpenSettingsAsync(owner);
+            await _desktop.OpenSettingsAsync();
         }
         catch (Exception exception)
         {
@@ -849,6 +878,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _retentionTimer.Tick -= OnRetentionTick;
         _activeCancellation?.Cancel();
         _activeCancellation?.Dispose();
+        Before = null;
+        After = null;
+        foreach (var item in _allItems) item.Thumbnail = null;
         Raise(nameof(CanAdjustQuality));
         GC.SuppressFinalize(this);
     }

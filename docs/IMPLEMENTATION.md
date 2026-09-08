@@ -29,7 +29,7 @@ This document is the execution contract for the first complete Windows build.
 
 ## Phase 3 — desktop UX
 
-- [ ] Build accessible WPF window with keyboard navigation, high-DPI support, light/dark system theme compatibility, and minimum 1024×680 layout.
+- [ ] Build an accessible Avalonia window with keyboard navigation, high-DPI support, and a minimum 1024×680 layout.
 - [ ] Empty state: large drop target plus “Choose image”.
 - [ ] Working state: preview skeleton/progress text/cancel.
 - [ ] Result state: before/after checkerboard preview, zoom-to-fit, Copy, Save, Save as…, new image.
@@ -61,7 +61,7 @@ Agents must commit only cohesive changes and must not change architecture withou
 
 1. **Core agent:** solution scaffolding, Domain/Application, unit tests.
 2. **Inference agent:** Infrastructure imaging, ONNX engine, refinement, model download, tests.
-3. **Desktop agent:** WPF views/view-models, settings, clipboard, command-line/single-instance.
+3. **Desktop agent:** Avalonia views/view-models, settings, clipboard, command-line/single-instance.
 4. **Packaging agent:** publish scripts, Inno Setup, model staging, notices, verification scripts.
 
 Parallel agents should use isolated Git worktrees. Integration happens only after each branch builds/tests in its own worktree.

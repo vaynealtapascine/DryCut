@@ -2,12 +2,15 @@
   <PropertyGroup>
     <AssemblyName>BackgroundCut.Infrastructure</AssemblyName>
     <RootNamespace>BackgroundCut.Infrastructure</RootNamespace>
+    <UseDirectML Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">true</UseDirectML>
+    <UseDirectML Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">true</UseDirectML>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\BackgroundCut.Application\BackgroundCut.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
-    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" Condition="'$(UseDirectML)' == 'true'" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" Condition="'$(UseDirectML)' != 'true'" />
   </ItemGroup>
 </Project>

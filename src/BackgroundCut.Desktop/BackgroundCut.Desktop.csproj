@@ -3,17 +3,22 @@
     <AssemblyName>BackgroundCut.Desktop</AssemblyName>
     <RootNamespace>BackgroundCut.Desktop</RootNamespace>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <TargetFramework>net8.0</TargetFramework>
     <ApplicationIcon>..\..\assets\BackgroundCut.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\BackgroundCut.Application\BackgroundCut.Application.csproj" />
     <ProjectReference Include="..\BackgroundCut.Infrastructure\BackgroundCut.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="..\..\assets\BackgroundCut.ico" Link="BackgroundCut.ico" />
+    <PackageReference Include="Avalonia" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.20" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="..\..\assets\BackgroundCut.ico" Link="Assets\BackgroundCut.ico" />
   </ItemGroup>
 </Project>

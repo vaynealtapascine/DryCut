@@ -1,9 +1,8 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Windows;
-using System.Windows.Data;
 using System.Windows.Input;
+using Avalonia.Data.Converters;
 
 namespace BackgroundCut.Desktop.Ui;
 
@@ -56,20 +55,19 @@ public sealed class RelayCommand(Action<object?> execute, Func<object?, bool>? c
     public void Refresh() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
 
-public sealed class StringToVisibilityConverter : IValueConverter
+public sealed class StringNotEmptyConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-        value is string text && !string.IsNullOrWhiteSpace(text) ? Visibility.Visible : Visibility.Collapsed;
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string text && !string.IsNullOrWhiteSpace(text);
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
 
-public sealed class InverseBooleanToVisibilityConverter : IValueConverter
+public sealed class InverseBooleanConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-        value is true ? Visibility.Collapsed : Visibility.Visible;
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not true;
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }

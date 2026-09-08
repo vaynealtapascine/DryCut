@@ -102,12 +102,20 @@ public sealed class OnnxBackgroundRemovalEngine : IBackgroundRemovalEngine, IDis
                 return (_session, _usingDirectMl);
 
             _session?.Dispose();
-            try
+            if (OperatingSystem.IsWindows())
             {
-                _session = CreateSession(modelPath, useDirectMl: true);
-                _usingDirectMl = true;
+                try
+                {
+                    _session = CreateSession(modelPath, useDirectMl: true);
+                    _usingDirectMl = true;
+                }
+                catch
+                {
+                    _session = CreateSession(modelPath, useDirectMl: false);
+                    _usingDirectMl = false;
+                }
             }
-            catch when (OperatingSystem.IsWindows())
+            else
             {
                 _session = CreateSession(modelPath, useDirectMl: false);
                 _usingDirectMl = false;

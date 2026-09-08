@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.IO;
-using System.Windows.Media.Imaging;
+using Avalonia.Media.Imaging;
 using BackgroundCut.Domain.Models;
 
 namespace BackgroundCut.Desktop.Ui;
@@ -20,7 +20,7 @@ public sealed class QueueItemViewModel : ObservableObject
     private double _progress;
     private string _status;
     private string _errorDetails = "";
-    private BitmapSource? _thumbnail;
+    private Bitmap? _thumbnail;
     private bool _isSelected;
 
     private QueueItemViewModel(
@@ -63,6 +63,7 @@ public sealed class QueueItemViewModel : ObservableObject
             Raise(nameof(HasFailed));
             Raise(nameof(CanCopy));
             Raise(nameof(CanDelete));
+            Raise(nameof(StatusColor));
         }
     }
 
@@ -76,8 +77,26 @@ public sealed class QueueItemViewModel : ObservableObject
         }
     }
     public string ErrorDetails { get => _errorDetails; private set => Set(ref _errorDetails, value); }
-    public BitmapSource? Thumbnail { get => _thumbnail; internal set => Set(ref _thumbnail, value); }
-    public bool IsSelected { get => _isSelected; internal set => Set(ref _isSelected, value); }
+    public Bitmap? Thumbnail
+    {
+        get => _thumbnail;
+        internal set
+        {
+            if (ReferenceEquals(_thumbnail, value)) return;
+            var previous = _thumbnail;
+            if (Set(ref _thumbnail, value)) previous?.Dispose();
+        }
+    }
+    public bool IsSelected
+    {
+        get => _isSelected;
+        internal set
+        {
+            if (!Set(ref _isSelected, value)) return;
+            Raise(nameof(SelectionBorderColor));
+            Raise(nameof(SelectionBackgroundColor));
+        }
+    }
 
     public bool IsWaiting => State == QueueItemState.Waiting;
     public bool IsProcessing => State == QueueItemState.Processing;
@@ -87,11 +106,20 @@ public sealed class QueueItemViewModel : ObservableObject
     public bool CanDelete => !IsProcessing;
     public string TimestampText => AddedAtUtc.LocalDateTime.ToString("g", CultureInfo.CurrentCulture);
     public string SelectionAutomationName => $"Select {DisplayName}, {Status}";
+    public string SelectionBorderColor => IsSelected ? "#D97706" : "#E8D3AE";
+    public string SelectionBackgroundColor => IsSelected ? "#FFF1CC" : "#FFFEF8";
+    public string StatusColor => State switch
+    {
+        QueueItemState.Processing => "#D97706",
+        QueueItemState.Completed => "#7A8B42",
+        QueueItemState.Failed or QueueItemState.Cancelled => "#B84A3A",
+        _ => "#A48A70"
+    };
 
     public static QueueItemViewModel CreatePending(
         string sourcePath,
         DateTimeOffset addedAtUtc,
-        BitmapSource? thumbnail,
+        Bitmap? thumbnail,
         ProcessingOptions options)
     {
         var item = new QueueItemViewModel(
@@ -109,7 +137,7 @@ public sealed class QueueItemViewModel : ObservableObject
         return item;
     }
 
-    public static QueueItemViewModel FromHistory(ProcessedImageHistoryItem historyItem, BitmapSource? thumbnail = null)
+    public static QueueItemViewModel FromHistory(ProcessedImageHistoryItem historyItem, Bitmap? thumbnail = null)
     {
         ArgumentNullException.ThrowIfNull(historyItem);
         var item = new QueueItemViewModel(

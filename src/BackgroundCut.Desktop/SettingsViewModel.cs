@@ -40,7 +40,7 @@ public sealed class SettingsViewModel : ObservableObject
         _policy = initial.Policy;
         _folder = initial.DefaultFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "BackgroundCut");
 
-        BrowseCommand = new RelayCommand(_ => Browse());
+        BrowseCommand = new AsyncCommand(_ => BrowseAsync());
         SaveCommand = new AsyncCommand(_ => SaveAsync(), _ => !IsDownloading);
         CancelCommand = new RelayCommand(_ => _close(), _ => !IsDownloading);
         DownloadModelCommand = new AsyncCommand(_ => DownloadModelAsync(), _ => !IsDownloading && !HighestQualityInstalled);
@@ -62,6 +62,7 @@ public sealed class SettingsViewModel : ObservableObject
 
     public string Folder { get => _folder; set => Set(ref _folder, value); }
     public bool ExplorerEnabled { get => _explorerEnabled; set => Set(ref _explorerEnabled, value); }
+    public bool SupportsExplorerIntegration => _explorer.IsSupported;
     public bool UsesDefaultFolder => Policy == ExportPolicy.DefaultFolder;
     public bool HighestQualityInstalled { get => _highestQualityInstalled; private set { if (Set(ref _highestQualityInstalled, value)) RefreshCommands(); } }
     public bool IsDownloading { get => _isDownloading; private set { if (Set(ref _isDownloading, value)) RefreshCommands(); } }
@@ -80,7 +81,7 @@ public sealed class SettingsViewModel : ObservableObject
         _ => "Save automatically to your BackgroundCut folder."
     };
 
-    public RelayCommand BrowseCommand { get; }
+    public AsyncCommand BrowseCommand { get; }
     public AsyncCommand SaveCommand { get; }
     public RelayCommand CancelCommand { get; }
     public AsyncCommand DownloadModelCommand { get; }
@@ -88,7 +89,7 @@ public sealed class SettingsViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        ExplorerEnabled = await _explorer.IsEnabledAsync(CancellationToken.None);
+        ExplorerEnabled = _explorer.IsSupported && await _explorer.IsEnabledAsync(CancellationToken.None);
         HighestQualityInstalled = _catalog.Resolve(ModelKind.HighestQuality).IsInstalled;
         ModelStatus = HighestQualityInstalled
             ? "Highest quality is installed and ready."
@@ -103,11 +104,32 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         }
 
-        await _store.SaveExportSettingsAsync(new ExportSettings(Policy, Folder), CancellationToken.None);
-        if (ExplorerEnabled)
-            await _explorer.EnableAsync(CancellationToken.None);
-        else
-            await _explorer.DisableAsync(CancellationToken.None);
+        try
+        {
+            await _store.SaveExportSettingsAsync(new ExportSettings(Policy, Folder), CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            ModelStatus = $"Couldn't save settings: {ex.Message}";
+            return;
+        }
+
+        try
+        {
+            if (_explorer.IsSupported)
+            {
+                if (ExplorerEnabled)
+                    await _explorer.EnableAsync(CancellationToken.None);
+                else
+                    await _explorer.DisableAsync(CancellationToken.None);
+            }
+        }
+        catch (Exception ex)
+        {
+            ModelStatus = $"Settings were saved, but the Explorer menu could not be updated: {ex.Message}";
+            return;
+        }
+
         _close();
     }
 
@@ -142,11 +164,11 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
-    private void Browse()
+    private async Task BrowseAsync()
     {
         try
         {
-            Folder = _dialogs.PickFolder(Folder) ?? Folder;
+            Folder = await _dialogs.PickFolderAsync(Folder) ?? Folder;
         }
         catch (Exception ex)
         {

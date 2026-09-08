@@ -1,5 +1,6 @@
-using System.Windows;
-using System.Windows.Input;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Markup.Xaml;
 using BackgroundCut.Desktop.Ui;
 
 namespace BackgroundCut.Desktop;
@@ -9,20 +10,32 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Loaded += OnLoaded;
+        Opened += OnOpened;
     }
 
-    private async void OnLoaded(object sender, RoutedEventArgs e)
+    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+    private async void OnOpened(object? sender, EventArgs e)
     {
-        Loaded -= OnLoaded;
+        Opened -= OnOpened;
         if (DataContext is MainViewModel viewModel)
             await viewModel.InitializeAsync();
     }
 
-    private void OnDragOver(object sender, System.Windows.DragEventArgs e) => e.Effects = e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop) ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
-    private void OnDrop(object sender, System.Windows.DragEventArgs e)
+    private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] files && files.Length > 0 && DataContext is MainViewModel viewModel)
-            viewModel.DropPaths(files);
+        e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None;
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        var paths = e.DataTransfer.Items
+            .Select(item => item.TryGetFile())
+            .Where(file => file is not null)
+            .Select(file => file!.Path.LocalPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToArray();
+        if (paths is { Length: > 0 } && DataContext is MainViewModel viewModel)
+            viewModel.DropPaths(paths);
     }
 }

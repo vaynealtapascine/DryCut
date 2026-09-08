@@ -1,5 +1,13 @@
 # BackgroundCut.Desktop
 
-The WPF workstream owns the user workflow, presentation, drag/drop, dialogs, startup arguments, and single-instance handoff. Infrastructure implementations are intentionally not invented here: `CompositionRoot.cs` contains explicit unavailable seams so a build cannot silently claim to process or export images before those adapters are integrated.
+The desktop project provides the Avalonia user interface, MVVM presentation layer, drag-and-drop and file dialogs, clipboard access, startup arguments, settings, and single-instance handoff.
 
-The composition root should replace `UnavailableEngine`, `UnavailableExport`, `UnavailableClipboard`, and `UnavailableCatalog` with Infrastructure implementations during integration.
+`CompositionRoot.cs` connects the desktop shell to the Application and Infrastructure implementations. The common application path is cross-platform; Windows additionally enables DirectML acceleration and the optional Explorer context-menu integration, while unsupported integrations remain disabled on macOS and Linux.
+
+The project targets `net8.0`. Use an explicit runtime identifier when publishing, for example:
+
+```text
+dotnet publish BackgroundCut.Desktop.csproj -c Release -r win-x64 --self-contained false
+dotnet publish BackgroundCut.Desktop.csproj -c Release -r osx-arm64 --self-contained false
+dotnet publish BackgroundCut.Desktop.csproj -c Release -r linux-x64 --self-contained false
+```

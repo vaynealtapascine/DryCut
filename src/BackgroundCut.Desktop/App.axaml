@@ -1,0 +1,121 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:BackgroundCut.Desktop.Ui"
+             x:Class="BackgroundCut.Desktop.App"
+             RequestedThemeVariant="Light">
+  <Application.Resources>
+    <ui:InverseBooleanConverter x:Key="InverseBool" />
+    <ui:StringNotEmptyConverter x:Key="StringNotEmpty" />
+
+    <Color x:Key="CanvasColor">#FFF8E8</Color>
+    <Color x:Key="SurfaceColor">#FFFEF8</Color>
+    <Color x:Key="TextColor">#3A2A20</Color>
+    <Color x:Key="MutedColor">#806B58</Color>
+    <Color x:Key="AccentColor">#D97706</Color>
+    <Color x:Key="AccentHoverColor">#B45309</Color>
+    <Color x:Key="AccentSoftColor">#FDE8B8</Color>
+    <Color x:Key="BorderColor">#E8D3AE</Color>
+    <Color x:Key="DangerColor">#B84A3A</Color>
+
+    <SolidColorBrush x:Key="CanvasBrush" Color="{StaticResource CanvasColor}" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+    <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}" />
+    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}" />
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme DensityStyle="Compact" />
+
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="fonts:Inter#Inter" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="Background" Value="{StaticResource CanvasBrush}" />
+    </Style>
+
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="20" />
+    </Style>
+
+    <Style Selector="Button">
+      <Setter Property="Background" Value="#FFF7E6" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="16,9" />
+      <Setter Property="Margin" Value="4" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button:pointerover">
+      <Setter Property="Opacity" Value="0.9" />
+    </Style>
+    <Style Selector="Button:pressed">
+      <Setter Property="Opacity" Value="0.82" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentHoverBrush}" />
+    </Style>
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="Button.small">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Margin" Value="2" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Margin" Value="2" />
+      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+      <Setter Property="Background" Value="#FFF1E8" />
+      <Setter Property="BorderBrush" Value="#EBC2AE" />
+    </Style>
+
+    <Style Selector="ComboBox">
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Padding" Value="11,7" />
+      <Setter Property="Background" Value="#FFF9ED" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="CornerRadius" Value="9" />
+    </Style>
+    <Style Selector="ComboBoxItem">
+      <Setter Property="Padding" Value="11,8" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="CornerRadius" Value="9" />
+    </Style>
+    <Style Selector="ProgressBar">
+      <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+      <Setter Property="Background" Value="#F2DFC0" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+  </Application.Styles>
+</Application>
