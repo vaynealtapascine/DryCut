@@ -1,4 +1,4 @@
-# BackgroundCut release packaging
+# DryCut release packaging
 
 These scripts build the Windows distributables without adding model weights or
 publish output to Git. Run them from a Windows machine with the .NET 8 SDK.
@@ -22,7 +22,7 @@ pwsh -File .\scripts\build-release.ps1 -Version 0.1.0
 
 The build first deletes `installer/staging` and `artifacts`, then:
 
-1. publishes `BackgroundCut.Desktop.csproj` self-contained for `win-x64`;
+1. publishes `DryCut.Desktop.csproj` self-contained for `win-x64`;
 2. downloads `isnet-general-use-q8.onnx` over HTTPS and verifies its exact
    documented length and SHA-256;
 3. assembles `THIRD-PARTY-NOTICES.txt` from project/NuGet metadata and cached
@@ -32,7 +32,7 @@ The build first deletes `installer/staging` and `artifacts`, then:
 6. compiles a per-user, self-contained installer; and
 7. writes `artifacts/checksums.txt` for the ZIP and installer.
 
-The installer is installed under `%LocalAppData%\Programs\BackgroundCut`, uses
+The installer is installed under `%LocalAppData%\Programs\DryCut`, uses
 `PrivilegesRequired=lowest`, and includes the app's self-contained .NET files
 and the default model. Its optional unchecked Explorer task registers only the
 per-user `HKCU\Software\Classes\SystemFileAssociations\image` command. The
@@ -51,15 +51,15 @@ The lower-level scripts can be run independently for troubleshooting:
 
 They use strict error handling and stop on missing inputs, failed commands, or
 checksum mismatches. `publish-win-x64.ps1` deliberately fails if the Desktop
-project does not produce `BackgroundCut.Desktop.exe`; this prevents a plausible
+project does not produce `DryCut.Desktop.exe`; this prevents a plausible
 but unusable release while the desktop implementation is incomplete.
 
 ## Expected output
 
 ```text
 artifacts/
-  BackgroundCut-Setup-<version>.exe
-  BackgroundCut-portable-<version>.zip
+  DryCut-Setup-<version>.exe
+  DryCut-portable-<version>.zip
   checksums.txt
 ```
 

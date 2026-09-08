@@ -1,0 +1,86 @@
+using DryCut.Domain.Models;
+
+namespace DryCut.Application.Ports;
+
+public interface IBackgroundRemovalEngine
+{
+    Task<ProcessedImage> ProcessAsync(ImageInput input, ModelDescriptor model, RefinementSettings refinement, IProgress<ProcessingProgress>? progress, CancellationToken cancellationToken);
+}
+
+public interface IModelCatalog
+{
+    ModelDescriptor Resolve(ModelKind kind);
+}
+
+public interface ISettingsStore
+{
+    Task<ExportSettings> LoadExportSettingsAsync(CancellationToken cancellationToken);
+    Task SaveExportSettingsAsync(ExportSettings settings, CancellationToken cancellationToken);
+    Task<UiSettings> LoadUiSettingsAsync(CancellationToken cancellationToken);
+    Task SaveUiSettingsAsync(UiSettings settings, CancellationToken cancellationToken);
+}
+
+public interface IExportService
+{
+    Task<ExportedFile> ExportAsync(ProcessedImage image, ExportRequest request, CancellationToken cancellationToken);
+}
+
+public interface IClipboardService
+{
+    Task CopyAsync(ProcessedImage image, CancellationToken cancellationToken);
+}
+
+public interface IProcessedImageHistoryStore
+{
+    /// <summary>
+    /// Saves one processed image and metadata. When <paramref name="sourcePath"/> is provided,
+    /// it is retained as display-only metadata (e.g. to show the original alongside the result
+    /// after a restart) — it is never used to locate or validate anything inside the store, and
+    /// the file it names may later move or be deleted.
+    /// </summary>
+    Task<ProcessedImageHistoryItem> SaveAsync(
+        ProcessedImage image,
+        string originalFileName,
+        DateTimeOffset processedAtUtc,
+        string? sourcePath = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Returns metadata only, newest first; no PNG pixels are loaded.</summary>
+    Task<IReadOnlyList<ProcessedImageHistoryItem>> EnumerateMetadataAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Loads one stored PNG, or null when its artifact is unavailable or invalid.</summary>
+    Task<ProcessedImage?> LoadAsync(ProcessedImageHistoryItem item, CancellationToken cancellationToken = default);
+
+    /// <summary>Resolves the local PNG artifact for preview without decoding it.</summary>
+    string? GetImagePath(ProcessedImageHistoryItem item);
+
+    /// <summary>Deletes one item and its persisted artifacts. Missing artifacts are ignored.</summary>
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes visible items strictly older than the retention boundary and stale temporary files.</summary>
+    /// <remarks>Unpaired PNGs are preserved because a user may have manually exported one into the history folder.</remarks>
+    Task<int> CleanupAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
+}
+
+public static class ProcessedImageHistoryPolicy
+{
+    public const int GalleryPreviewLimit = 100;
+    public static TimeSpan Retention => TimeSpan.FromDays(30);
+}
+
+public interface IExplorerIntegration
+{
+    bool IsSupported { get; }
+    Task<bool> IsEnabledAsync(CancellationToken cancellationToken);
+    Task EnableAsync(CancellationToken cancellationToken);
+    Task DisableAsync(CancellationToken cancellationToken);
+}
+
+public sealed record ProcessingProgress(string Stage, double Fraction);
+public sealed record ExportRequest(
+    ExportPolicy Policy,
+    string? DefaultFolder,
+    string? SourceFolder,
+    string? RequestedPath = null,
+    string? SuggestedFileName = null);
+public sealed record ExportedFile(string Path);

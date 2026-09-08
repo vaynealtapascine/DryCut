@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>DryCut.Application</AssemblyName>
+    <RootNamespace>DryCut.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DryCut.Domain\DryCut.Domain.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <AssemblyName>BackgroundCut.Domain</AssemblyName>
-    <RootNamespace>BackgroundCut.Domain</RootNamespace>
-  </PropertyGroup>
-</Project>

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Project = (Join-Path $PSScriptRoot '..\src\BackgroundCut.Desktop\BackgroundCut.Desktop.csproj'),
+    [string]$Project = (Join-Path $PSScriptRoot '..\src\DryCut.Desktop\DryCut.Desktop.csproj'),
     [string]$PublishDir = (Join-Path $PSScriptRoot '..\installer\staging\app'),
     [string]$Version = '1.0.0',
     [switch]$DryRun
@@ -21,4 +21,4 @@ New-Item -ItemType Directory -Force -Path $publishPath | Out-Null
 
 dotnet publish $projectPath --configuration Release --runtime win-x64 --self-contained true --output $publishPath --property:PublishSingleFile=false --property:PublishReadyToRun=false --property:DebugType=None --property:DebugSymbols=false --property:Version=$Version
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
-if (-not (Test-Path (Join-Path $publishPath 'BackgroundCut.Desktop.exe'))) { throw 'Publish completed without BackgroundCut.Desktop.exe.' }
+if (-not (Test-Path (Join-Path $publishPath 'DryCut.Desktop.exe'))) { throw 'Publish completed without DryCut.Desktop.exe.' }

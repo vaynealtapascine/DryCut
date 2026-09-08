@@ -1,9 +1,9 @@
-"""Generate the deterministic BackgroundCut Windows icon."""
+"""Generate the deterministic DryCut Windows icon."""
 from pathlib import Path
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "assets" / "BackgroundCut.ico"
+OUT = ROOT / "assets" / "DryCut.ico"
 SIZES = [16, 24, 32, 48, 64, 128, 256]
 
 

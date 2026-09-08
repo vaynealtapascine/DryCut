@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$SourceDir = (Join-Path $PSScriptRoot '..\installer\staging'),
-    [string]$Output = (Join-Path $PSScriptRoot '..\artifacts\BackgroundCut-portable.zip'),
+    [string]$Output = (Join-Path $PSScriptRoot '..\artifacts\DryCut-portable.zip'),
     [switch]$DryRun
 )
 Set-StrictMode -Version Latest

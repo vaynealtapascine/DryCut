@@ -1,4 +1,4 @@
-BackgroundCut model notices
+DryCut model notices
 ===========================
 
 IS-Net general-use q8

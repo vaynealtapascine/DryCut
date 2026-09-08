@@ -25,7 +25,7 @@ try {
     Remove-Item -Force -ErrorAction SilentlyContinue $temp
     $client = [Net.Http.HttpClient]::new()
     try {
-        $client.DefaultRequestHeaders.UserAgent.ParseAdd('BackgroundCut-release-builder/1.0')
+        $client.DefaultRequestHeaders.UserAgent.ParseAdd('DryCut-release-builder/1.0')
         $response = $client.GetAsync($ModelUri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
         try {
             $null = $response.EnsureSuccessStatusCode()

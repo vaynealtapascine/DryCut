@@ -1,4 +1,4 @@
-# BackgroundCut — Architecture
+# DryCut — Architecture
 
 Status: implementation baseline
 Target: Windows, macOS, and Linux desktop
@@ -6,7 +6,7 @@ Runtime: .NET 8 with Avalonia 11; self-contained Windows deployment
 
 ## 1. Product intent
 
-BackgroundCut is a local-first desktop utility that removes image backgrounds without uploading images. It is designed for people who want a single obvious workflow—open or drop an image, remove the background, copy or save—while keeping advanced quality and export controls available but out of the way.
+DryCut is a local-first desktop utility that removes image backgrounds without uploading images. It is designed for people who want a single obvious workflow—open or drop an image, remove the background, copy or save—while keeping advanced quality and export controls available but out of the way.
 
 ### Product principles
 
@@ -22,7 +22,7 @@ BackgroundCut is a local-first desktop utility that removes image backgrounds wi
 - **UI:** Avalonia 11 on .NET 8 (`net8.0`), MVVM without an additional framework.
 - **Inference:** Microsoft ONNX Runtime, preferring DirectML on Windows and using CPU elsewhere or when acceleration is unavailable.
 - **Image processing:** SixLabors.ImageSharp for decode/resize/mask/composition/PNG output; Avalonia bitmaps only at the UI boundary.
-- **Settings:** versioned JSON under the platform's local-application-data `BackgroundCut` directory; processed-image history beside it.
+- **Settings:** versioned JSON under the platform's local-application-data `DryCut` directory; processed-image history beside it.
 - **Models:** bundled IS-Net q8 (Apache-2.0); optional BiRefNet FP16 (MIT upstream, downloaded after explicit user action).
 - **Installer:** Inno Setup, per-user by default, producing one signed-ready `.exe`; includes application, .NET runtime, default model, licenses, and optional Explorer integration task.
 - **Tests:** xUnit for core/application logic plus a deterministic fake inference service; smoke test against the real ONNX model.
@@ -32,21 +32,21 @@ This stack avoids Python/runtime installation, browser shells, services, and net
 ## 3. Clean architecture boundaries
 
 ```text
-BackgroundCut.Domain
+DryCut.Domain
   Pure value types and policies: export destination, model choice,
   refinement settings, operation result. No UI, filesystem, registry,
   image library, or ONNX references.
 
-BackgroundCut.Application
+DryCut.Application
   Use cases and ports: process image, export, settings, model catalog,
   context-menu management, and processed-image history contracts. Depends only on Domain.
 
-BackgroundCut.Infrastructure
+DryCut.Infrastructure
   ONNX inference, ImageSharp processing, filesystem, clipboard bridge,
   registry integration, JSON settings, model download/checksum, and atomic PNG/metadata history storage.
   Implements Application ports.
 
-BackgroundCut.Desktop
+DryCut.Desktop
   Avalonia composition root, views, view-models, dialogs, drag/drop, progress,
   single-instance/command-line handoff. Depends on Application and
   Infrastructure.
@@ -119,7 +119,7 @@ Available actions:
 
 - **Copy image:** place PNG image data on the system clipboard, with a compatible bitmap representation where the platform supports it.
 - **Save:** according to one of three persisted policies:
-  - default folder (`Pictures\BackgroundCut` by default, configurable);
+  - default folder (`Pictures\DryCut` by default, configurable);
   - source image folder;
   - ask every time.
 - **Save as…:** always prompts, regardless of policy.
@@ -130,10 +130,10 @@ Collision behavior: `photo-background-removed.png`, then `photo-background-remov
 
 ## 8. Explorer integration
 
-The installer offers an unchecked/clearly described optional task, and Settings exposes Add/Remove buttons. Registration is per-user under `HKCU\Software\Classes\SystemFileAssociations\image\shell\BackgroundCut` so elevation is unnecessary. The command is:
+The installer offers an unchecked/clearly described optional task, and Settings exposes Add/Remove buttons. Registration is per-user under `HKCU\Software\Classes\SystemFileAssociations\image\shell\DryCut` so elevation is unnecessary. The command is:
 
 ```text
-"<install>\BackgroundCut.exe" "%1"
+"<install>\DryCut.exe" "%1"
 ```
 
 The application treats command-line input as untrusted: it accepts exactly one supported local file, canonicalizes the path, and displays a normal error for invalid input.
@@ -166,8 +166,8 @@ One process owns a named mutex. Later launches send the canonical path over a na
 
 ```text
 artifacts/
-  BackgroundCut-Setup-<version>.exe   # distributable one-file installer
-  BackgroundCut-portable-<version>.zip
+  DryCut-Setup-<version>.exe   # distributable one-file installer
+  DryCut-portable-<version>.zip
   checksums.txt
 ```
 

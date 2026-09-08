@@ -1,4 +1,4 @@
-# BackgroundCut — Implementation Plan
+# DryCut — Implementation Plan
 
 This document is the execution contract for the first complete Windows build.
 

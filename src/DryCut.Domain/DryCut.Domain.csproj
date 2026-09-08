@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>DryCut.Domain</AssemblyName>
+    <RootNamespace>DryCut.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>

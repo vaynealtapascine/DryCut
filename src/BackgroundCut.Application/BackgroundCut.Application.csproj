@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <AssemblyName>BackgroundCut.Application</AssemblyName>
-    <RootNamespace>BackgroundCut.Application</RootNamespace>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\BackgroundCut.Domain\BackgroundCut.Domain.csproj" />
-  </ItemGroup>
-</Project>

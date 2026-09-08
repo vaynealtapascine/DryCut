@@ -1,0 +1,311 @@
+using System.Text.Json;
+using DryCut.Domain.Models;
+
+namespace DryCut.Infrastructure.Tests;
+
+public sealed class ProcessedImageHistoryStoreTests
+{
+    [Fact]
+    public async Task SaveAndEnumerateReturnsMetadataNewestFirstWithoutSourcePath()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var older = await store.SaveAsync(
+                OnePixel(1, 2, 3, 255),
+                @"C:\private\older.png",
+                new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+            var newer = await store.SaveAsync(
+                OnePixel(4, 5, 6, 128),
+                "newer.png",
+                new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero));
+
+            var items = await store.EnumerateMetadataAsync();
+
+            Assert.Equal(newer.Id, items[0].Id);
+            Assert.Equal(older.Id, items[1].Id);
+            Assert.Equal("older.png", older.OriginalFileName);
+            var metadata = File.ReadAllText(Path.Combine(directory, older.Id.ToString("N") + ".json"));
+            Assert.DoesNotContain(@"C:\private", metadata, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(".png", older.PngPath, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task LoadRoundTripsRgbaIncludingAlpha()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var expected = new ProcessedImage(
+                [10, 20, 30, 0, 40, 50, 60, 127, 70, 80, 90, 255, 100, 110, 120, 1],
+                2,
+                2);
+            var item = await store.SaveAsync(expected, "alpha.png", DateTimeOffset.UtcNow);
+
+            var actual = await store.LoadAsync(item);
+
+            Assert.NotNull(actual);
+            Assert.Equal(expected.Width, actual.Width);
+            Assert.Equal(expected.Height, actual.Height);
+            Assert.Equal(expected.Pixels, actual.Pixels);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task CleanupDeletesStrictlyOlderThanThirtyDaysAndKeepsBoundary()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var now = new DateTimeOffset(2025, 2, 1, 12, 0, 0, TimeSpan.Zero);
+            var boundary = await store.SaveAsync(OnePixel(1, 2, 3, 4), "boundary.png", now.AddDays(-30));
+            var expired = await store.SaveAsync(OnePixel(5, 6, 7, 8), "expired.png", now.AddDays(-30).AddTicks(-1));
+
+            var deleted = await store.CleanupAsync(now);
+            var remaining = await store.EnumerateMetadataAsync();
+
+            Assert.Equal(1, deleted);
+            Assert.Contains(remaining, item => item.Id == boundary.Id);
+            Assert.DoesNotContain(remaining, item => item.Id == expired.Id);
+            Assert.True(File.Exists(Path.Combine(directory, boundary.PngPath)));
+            Assert.False(File.Exists(Path.Combine(directory, expired.PngPath)));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task EnumerationAndCleanupTolerateCorruptMetadataAndOrphanFiles()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var now = new DateTimeOffset(2025, 2, 1, 12, 0, 0, TimeSpan.Zero);
+            var valid = await store.SaveAsync(OnePixel(1, 2, 3, 255), "valid.png", now);
+            var orphanId = Guid.NewGuid().ToString("N");
+            var corruptMetadata = Path.Combine(directory, orphanId + ".json");
+            var orphanPng = Path.Combine(directory, orphanId + ".png");
+            var foreignFile = Path.Combine(directory, "saved-manually.png");
+            var guidNamedManualExport = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".png");
+            await File.WriteAllTextAsync(corruptMetadata, "{ definitely not metadata");
+            await File.WriteAllBytesAsync(orphanPng, [1, 2, 3]);
+            await File.WriteAllBytesAsync(foreignFile, [4, 5, 6]);
+            await File.WriteAllBytesAsync(guidNamedManualExport, [7, 8, 9]);
+            File.SetLastWriteTimeUtc(corruptMetadata, now.AddDays(-31).UtcDateTime);
+            File.SetLastWriteTimeUtc(orphanPng, now.AddDays(-31).UtcDateTime);
+            File.SetLastWriteTimeUtc(foreignFile, now.AddDays(-31).UtcDateTime);
+            File.SetLastWriteTimeUtc(guidNamedManualExport, now.AddDays(-31).UtcDateTime);
+
+            var items = await store.EnumerateMetadataAsync();
+            var deleted = await store.CleanupAsync(now);
+
+            Assert.Single(items);
+            Assert.Equal(valid.Id, items[0].Id);
+            Assert.Equal(0, deleted);
+            Assert.False(File.Exists(corruptMetadata));
+            Assert.False(File.Exists(orphanPng));
+            Assert.True(File.Exists(foreignFile));
+            Assert.True(File.Exists(guidNamedManualExport));
+            Assert.NotNull(await store.LoadAsync(valid));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteRemovesArtifactsAndIsIdempotent()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var item = await store.SaveAsync(OnePixel(1, 2, 3, 4), "delete-me.png", DateTimeOffset.UtcNow);
+            var pngPath = Path.Combine(directory, item.PngPath);
+            var metadataPath = Path.Combine(directory, item.Id.ToString("N") + ".json");
+
+            await store.DeleteAsync(item.Id);
+            await store.DeleteAsync(item.Id);
+
+            Assert.False(File.Exists(pngPath));
+            Assert.False(File.Exists(metadataPath));
+            Assert.Empty(await store.EnumerateMetadataAsync());
+            Assert.Null(await store.LoadAsync(item));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteIgnoresMissingHistoryDirectory()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            // No item was ever saved, so the history directory itself does not exist yet.
+            Directory.Delete(directory, recursive: true);
+            Assert.False(Directory.Exists(directory));
+
+            await store.DeleteAsync(Guid.NewGuid());
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task CleanupPreservesUnpairedPngsRegardlessOfAge()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var now = new DateTimeOffset(2025, 2, 1, 12, 0, 0, TimeSpan.Zero);
+
+            var staleOrphanPng = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".png");
+            await File.WriteAllBytesAsync(staleOrphanPng, [1, 2, 3]);
+            File.SetLastWriteTimeUtc(staleOrphanPng, now.AddDays(-31).UtcDateTime);
+
+            var freshOrphanPng = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".png");
+            await File.WriteAllBytesAsync(freshOrphanPng, [4, 5, 6]);
+            File.SetLastWriteTimeUtc(freshOrphanPng, now.UtcDateTime);
+
+            var deleted = await store.CleanupAsync(now);
+
+            Assert.Equal(0, deleted);
+            Assert.True(File.Exists(staleOrphanPng));
+            Assert.True(File.Exists(freshOrphanPng));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task EnumerationRejectsForeignReferencesAndMissingArtifacts()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var valid = await store.SaveAsync(OnePixel(1, 2, 3, 255), "valid.png", DateTimeOffset.UtcNow);
+            var missing = await store.SaveAsync(OnePixel(4, 5, 6, 255), "missing.png", DateTimeOffset.UtcNow);
+            File.Delete(Path.Combine(directory, missing.PngPath));
+
+            var forgedId = Guid.NewGuid();
+            var forged = new ProcessedImageHistoryItem(forgedId, "forged.png", DateTimeOffset.UtcNow, valid.PngPath);
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, forgedId.ToString("N") + ".json"),
+                JsonSerializer.Serialize(forged));
+
+            var items = await store.EnumerateMetadataAsync();
+
+            Assert.Single(items);
+            Assert.Equal(valid.Id, items[0].Id);
+            Assert.NotNull(store.GetImagePath(valid));
+            Assert.Null(store.GetImagePath(forged));
+
+            await store.CleanupAsync(DateTimeOffset.UtcNow);
+            Assert.False(File.Exists(Path.Combine(directory, missing.Id.ToString("N") + ".json")));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task SaveRetainsSourcePathAndEnumerationRoundTripsIt()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var sourcePath = Path.Combine(Path.GetTempPath(), "some-original.png");
+            var saved = await store.SaveAsync(
+                OnePixel(1, 2, 3, 255),
+                "original.png",
+                DateTimeOffset.UtcNow,
+                sourcePath: sourcePath);
+
+            Assert.Equal(sourcePath, saved.SourcePath);
+
+            var items = await store.EnumerateMetadataAsync();
+
+            Assert.Equal(sourcePath, Assert.Single(items).SourcePath);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task EnumerationLoadsPreExistingMetadataThatHasNoSourcePathField()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var id = Guid.NewGuid();
+            var pngPath = id.ToString("N") + ".png";
+            await File.WriteAllBytesAsync(Path.Combine(directory, pngPath), [1, 2, 3]);
+
+            // Hand-written metadata in the pre-SourcePath format: no "sourcePath" property at all.
+            var oldFormatJson = "{"
+                + $"\"id\":\"{id:D}\","
+                + "\"originalFileName\":\"legacy.png\","
+                + "\"processedAtUtc\":\"2025-01-01T00:00:00Z\","
+                + $"\"pngPath\":\"{pngPath}\""
+                + "}";
+            await File.WriteAllTextAsync(Path.Combine(directory, id.ToString("N") + ".json"), oldFormatJson);
+
+            var items = await store.EnumerateMetadataAsync();
+
+            var item = Assert.Single(items);
+            Assert.Equal(id, item.Id);
+            Assert.Null(item.SourcePath);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    private static ProcessedImage OnePixel(byte red, byte green, byte blue, byte alpha) =>
+        new([red, green, blue, alpha], 1, 1);
+
+    private static string CreateDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "DryCut-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
+    private static void DeleteDirectory(string directory)
+    {
+        if (Directory.Exists(directory))
+            Directory.Delete(directory, recursive: true);
+    }
+}

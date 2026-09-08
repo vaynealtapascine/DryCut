@@ -1,0 +1,77 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DryCut.Desktop.SettingsWindow"
+        Title="DryCut settings"
+        Width="620" Height="650" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource CanvasBrush}"
+        ShowInTaskbar="False">
+  <Grid Margin="30" RowDefinitions="Auto,*,Auto">
+    <StackPanel>
+      <TextBlock Text="Settings" FontSize="26" FontWeight="SemiBold" />
+      <TextBlock Text="Choose sensible defaults. You can change these at any time."
+                 Foreground="{DynamicResource MutedBrush}" Margin="0,6,0,24" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <TextBlock Text="Appearance" FontWeight="SemiBold" />
+        <ComboBox ItemsSource="{Binding ThemeChoices}"
+                  SelectedValue="{Binding Theme}"
+                  SelectedValueBinding="{Binding Value}"
+                  Margin="0,8,0,4">
+          <ComboBox.ItemTemplate>
+            <DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Text="{Binding ThemeDescription}" Foreground="{DynamicResource MutedBrush}" />
+        <TextBlock Text="&quot;Match system&quot; follows your OS's light/dark setting and switches automatically when it changes."
+                   FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0" />
+
+        <Separator Margin="0,24" />
+        <TextBlock Text="When I save" FontWeight="SemiBold" />
+        <ComboBox ItemsSource="{Binding PolicyChoices}"
+                  SelectedValue="{Binding Policy}"
+                  SelectedValueBinding="{Binding Value}"
+                  Margin="0,8,0,4">
+          <ComboBox.ItemTemplate>
+            <DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Text="{Binding PolicyDescription}" Foreground="{DynamicResource MutedBrush}" />
+
+        <StackPanel IsVisible="{Binding UsesDefaultFolder}">
+          <TextBlock Text="Default folder" FontWeight="SemiBold" Margin="0,22,0,8" />
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseCommand}" />
+            <TextBox Text="{Binding Folder}" Padding="9" VerticalContentAlignment="Center" />
+          </DockPanel>
+        </StackPanel>
+
+        <Separator Margin="0,24" />
+        <TextBlock Text="Quality models" FontWeight="SemiBold" />
+        <TextBlock Text="Fast &amp; accurate is included and works offline. For difficult hair, fur, and busy backgrounds, add the stronger model."
+                   TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,12" />
+        <StackPanel Orientation="Horizontal">
+          <Button Content="Download highest quality (467 MB)" Command="{Binding DownloadModelCommand}" />
+          <Button Content="Remove download" Command="{Binding RemoveModelCommand}" />
+        </StackPanel>
+        <ProgressBar Height="8" Margin="4,10,4,6" Maximum="1" Value="{Binding DownloadProgress, Mode=OneWay}" />
+        <TextBlock Text="{Binding ModelStatus}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Margin="4,0" />
+
+        <StackPanel IsVisible="{Binding SupportsExplorerIntegration}">
+          <Separator Margin="0,24" />
+          <CheckBox Content="Add “Remove background with DryCut” to Explorer's image menu"
+                    IsChecked="{Binding ExplorerEnabled}" />
+          <TextBlock Text="This adds or removes a per-user Windows menu entry. It does not need administrator access."
+                     FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="24,6,0,0" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+      <Button Content="Cancel" Command="{Binding CancelCommand}" />
+      <Button Content="Save settings" Command="{Binding SaveCommand}" IsDefault="True" Classes="primary" />
+    </StackPanel>
+  </Grid>
+</Window>
