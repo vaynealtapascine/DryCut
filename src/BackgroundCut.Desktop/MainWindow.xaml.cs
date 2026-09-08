@@ -10,10 +10,8 @@ namespace BackgroundCut.Desktop;
 
 public partial class MainWindow : Window
 {
-    // Full mode's window size before switching to panel mode, so switching back restores
-    // something sensible instead of leaving the window at the narrow panel width. Seeded with the
-    // XAML startup defaults (Width="1320" Height="840") in case the user is already in panel mode
-    // on this launch (persisted from a previous session) and never sees full mode at all.
+    // Seeded with the XAML startup defaults, since a session that opens straight into panel mode
+    // never observes a full-mode size to remember.
     private double _rememberedFullWidth = 1320;
     private double _rememberedFullHeight = 840;
     private bool _applyingViewMode;
@@ -68,11 +66,8 @@ public partial class MainWindow : Window
             ApplyViewMode(_viewModel.IsPanelMode);
     }
 
-    // MinWidth="1024" (the full-mode constraint declared in XAML) makes a narrow panel
-    // impossible, so switching modes adjusts the window's size constraints in code. Order
-    // matters: a smaller MinWidth must be set before shrinking Width (or Avalonia clamps the
-    // resize back up to the old, larger MinWidth), and MaxWidth must be raised before widening
-    // Width back on the way to full mode (or the resize is clamped back down).
+    // Order matters: MinWidth must be lowered before Width is shrunk, and MaxWidth raised before
+    // Width is widened, or Avalonia clamps the resize back to the previous constraint.
     private void ApplyViewMode(bool panelMode)
     {
         if (_viewModel is null) return;
@@ -81,10 +76,8 @@ public partial class MainWindow : Window
         {
             if (panelMode)
             {
-                // Window.Width/Height read back as NaN when the user has resized the window by
-                // dragging rather than the size having been set programmatically. Restoring NaN
-                // later would hand the window an auto-size instead of the size it actually had,
-                // so fall back to the measured client size, then to the remembered default.
+                // Width/Height read back as NaN once the user has dragged the window, which would
+                // later restore an auto-size instead of the size it actually had.
                 _rememberedFullWidth = FirstReal(Width, ClientSize.Width, _rememberedFullWidth);
                 _rememberedFullHeight = FirstReal(Height, ClientSize.Height, _rememberedFullHeight);
                 MinWidth = 340;
@@ -115,10 +108,8 @@ public partial class MainWindow : Window
         return 0;
     }
 
-    // Lets the user resize the panel and have that width remembered/persisted for next time.
-    // ClientSizeProperty (rather than Resized/SizeChanged) is used because it is a plain Avalonia
-    // property and so participates in the ordinary AvaloniaObject.PropertyChanged pipeline already
-    // wired up for view-mode changes below.
+    // ClientSizeProperty rather than Resized: it is a plain Avalonia property, so it rides the
+    // PropertyChanged pipeline already wired up here.
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (_applyingViewMode || e.Property != ClientSizeProperty || _viewModel is not { IsPanelMode: true }) return;

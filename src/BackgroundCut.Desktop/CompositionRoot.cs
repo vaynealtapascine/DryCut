@@ -125,11 +125,8 @@ internal sealed class AvaloniaPreviewBitmapFactory : Ui.IPreviewBitmapFactory
     }
 }
 
-// Reads image content back off the system clipboard for Ctrl+V paste. Everything downstream of
-// MainViewModel.EnqueuePaths is path-based (ImageInput, QueueItemViewModel.SourcePath, the history
-// store's persisted SourcePath, CanReprocessSelected/RetryCommand), so a raw bitmap payload must be
-// materialised to a real file before it is handed back; a file-drop payload (copying a file in
-// Explorer/Finder puts paths on the clipboard) is returned as-is with no temp file at all.
+// Everything downstream of EnqueuePaths is path-based, so a raw bitmap payload has to be
+// materialised to a file first. A file-drop payload is already paths and is returned as-is.
 internal sealed class AvaloniaClipboardImageSource(Func<Window?> ownerProvider) : Ui.IClipboardImageSource
 {
     // Mirrors AvaloniaClipboardService.PngClipboardFormat: this app writes real (non-premultiplied)
@@ -145,12 +142,9 @@ internal sealed class AvaloniaClipboardImageSource(Func<Window?> ownerProvider) 
         "BackgroundCut",
         "pasted");
 
-    // A pasted temp file is referenced by a queue item (and, once processed, a history entry) by
-    // path, so it must outlive processing. It cannot simply be deleted after enqueueing. Instead,
-    // each paste sweeps away its own previous stragglers older than the same 30-day window the
-    // gallery already uses (ProcessedImageHistoryPolicy.Retention / MainViewModel.RetentionNotice):
-    // by the time a pasted file is this old, any history entry it fed has itself already expired
-    // and been cleaned up, so nothing still points at it.
+    // Pasted files are referenced by path by queue items and history entries, so they cannot be
+    // deleted after enqueueing. Sweeping at the gallery's own retention age is safe: by then any
+    // history entry that referenced one has itself expired.
     private static readonly TimeSpan MaxAge = TimeSpan.FromDays(30);
 
     public async Task<IReadOnlyList<string>> ReadImagePathsAsync(CancellationToken cancellationToken)

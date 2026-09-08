@@ -38,16 +38,10 @@ public sealed class AvaloniaXamlSmokeTests
         window.Close();
     }
 
-    // MainWindow.axaml and SettingsWindow.axaml use reflection bindings
-    // (AvaloniaUseCompiledBindingsByDefault=false), so a typo'd Binding path does not fail the
-    // build and does not throw at runtime -- it just logs to Avalonia's LogArea.Binding sink and
-    // silently leaves the target property at its default value. Avalonia 11.3.20 has no
-    // Avalonia.Data.Core.Diagnostics.BindingDiagnostics event to hook (confirmed by reflecting
-    // over the shipped Avalonia.Base.dll: no such type exists in this version). The supported,
-    // version-stable way to observe these failures is Avalonia.Logging.Logger.Sink, which every
-    // binding-error code path in Avalonia.Base ultimately writes through. These tests install a
-    // capturing sink, force the real windows through a full show + layout + binding pass, and
-    // assert nothing was logged to LogArea.Binding at Warning or above.
+    // Reflection bindings (AvaloniaUseCompiledBindingsByDefault=false) neither fail the build nor
+    // throw on a bad path: they log and leave the target at its default. Avalonia 11.3.20 has no
+    // BindingDiagnostics to hook, so these tests capture Logger.Sink, which every binding-error
+    // path writes through, and fail on anything logged to LogArea.Binding.
     [AvaloniaFact]
     public async Task MainWindowBindingsResolveWithoutErrors()
     {
@@ -169,22 +163,10 @@ public sealed class AvaloniaXamlSmokeTests
         return Assert.IsAssignableFrom<ISolidColorBrush>(value);
     }
 
-    // TestAppBuilder.cs configures the headless platform with the default UseHeadlessDrawing=true,
-    // which swaps in Avalonia's HeadlessFontManagerStub for text shaping. That stub only recognizes
-    // a single synthetic family, "$Default" -- it does not actually load font files. App.axaml sets
-    // FontFamily="fonts:Inter#Inter" on every Window (inherited by every descendant TextBlock), so
-    // any real layout pass over these windows throws
-    // "InvalidOperationException: Could not create glyphTypeface. Font family: Inter ..." from deep
-    // inside TextBlock's measure/render, well before layout reaches the parts of the tree these
-    // tests care about (confirmed empirically: with the real font family, zero Borders realize
-    // before Show() throws). This is a pre-existing gap in the headless test harness, not something
-    // introduced by these bindings -- the supported fix is TestAppBuilder.cs using
-    // `UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })`, but that
-    // file is out of scope for this change. Setting a *local* FontFamily value on the window here
-    // achieves the same effect for just these tests without touching TestAppBuilder.cs or any
-    // production XAML/resources: a local value on Window beats the App-level style setter (per
-    // Avalonia's normal value-precedence rules), so it and every inheriting descendant resolve to
-    // the stub's "$Default" family and layout completes normally.
+    // The headless font manager only knows the synthetic "$Default" family, while App.axaml sets
+    // Inter on every Window, so any real layout pass throws before these tests reach the tree they
+    // care about. A local value on the window outranks the App-level style setter, which fixes it
+    // for these tests without touching TestAppBuilder or production XAML.
     private static void PrepareForHeadlessLayout(Window window) => window.FontFamily = FontFamily.Default;
 
     private static void PumpDispatcher()

@@ -210,7 +210,6 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
                 continue;
             }
 
-
         }
 
         return Task.FromResult(deletedItems);
@@ -327,13 +326,9 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         }
     }
 
-
-    // File.Delete already tolerates a missing FILE; it only throws DirectoryNotFoundException
-    // when the containing directory itself is gone (e.g. the user cleared %LOCALAPPDATA%, or a
-    // fresh store has never created its history folder). DeleteAsync's contract says missing
-    // artifacts are ignored, so that case is swallowed here too. Anything else (a locked or
-    // access-denied file) is intentionally left to propagate: MainViewModel.DeleteItemAsync
-    // catches it and tells the user to close other apps and try again.
+    // File.Delete already tolerates a missing file, but throws when the directory itself is gone,
+    // which the "missing artifacts are ignored" contract also covers. Everything else propagates:
+    // a locked file is reported to the user rather than silently swallowed.
     private static void DeleteArtifactIgnoringMissingDirectory(string path)
     {
         try
