@@ -17,6 +17,14 @@
     <Color x:Key="BorderColor">#E8D3AE</Color>
     <Color x:Key="DangerColor">#B84A3A</Color>
 
+    <!-- Additional surface tokens for raw hex values formerly inlined in styles -->
+    <Color x:Key="ButtonSurfaceColor">#FFF7E6</Color>
+    <Color x:Key="FieldSurfaceColor">#FFF9ED</Color>
+    <Color x:Key="TrackSurfaceColor">#F2DFC0</Color>
+    <Color x:Key="DangerSurfaceColor">#FFF1E8</Color>
+    <Color x:Key="DangerBorderColor">#EBC2AE</Color>
+    <Color x:Key="FocusRingColor">#B45309</Color>
+
     <SolidColorBrush x:Key="CanvasBrush" Color="{StaticResource CanvasColor}" />
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
     <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
@@ -26,6 +34,48 @@
     <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}" />
     <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+
+    <SolidColorBrush x:Key="ButtonSurfaceBrush" Color="{StaticResource ButtonSurfaceColor}" />
+    <SolidColorBrush x:Key="ButtonHoverBrush" Color="#FFEFCE" />
+    <SolidColorBrush x:Key="ButtonPressedBrush" Color="#FCE6B8" />
+    <SolidColorBrush x:Key="GhostHoverBrush" Color="#FBE9C4" />
+    <SolidColorBrush x:Key="GhostPressedBrush" Color="#F6DDA6" />
+    <SolidColorBrush x:Key="PrimaryPressedBrush" Color="#8A3F09" />
+    <SolidColorBrush x:Key="FieldSurfaceBrush" Color="{StaticResource FieldSurfaceColor}" />
+    <SolidColorBrush x:Key="FieldHoverBrush" Color="#FFF3DC" />
+    <SolidColorBrush x:Key="PreviewSurfaceBrush" Color="#F4E8D2" />
+    <SolidColorBrush x:Key="TrackSurfaceBrush" Color="{StaticResource TrackSurfaceColor}" />
+    <SolidColorBrush x:Key="DangerSurfaceBrush" Color="{StaticResource DangerSurfaceColor}" />
+    <SolidColorBrush x:Key="DangerBorderBrush" Color="{StaticResource DangerBorderColor}" />
+    <SolidColorBrush x:Key="DangerHoverSurfaceBrush" Color="#FBDFCF" />
+    <SolidColorBrush x:Key="DangerPressedSurfaceBrush" Color="#F5CFB9" />
+    <SolidColorBrush x:Key="FocusRingBrush" Color="{StaticResource FocusRingColor}" />
+
+    <!-- Transparency checkerboard. A background remover must let the user distinguish genuine
+         transparency from a light-coloured subject; a flat fill cannot. Tinted to sit inside the
+         warm palette rather than the usual clinical grey/white. Avalonia's RelativeRect parses an
+         unsuffixed rect as absolute units, so this is a real 20x20px tile (a "%"-suffixed value
+         would be relative to the target bounds and would scale with the control instead). -->
+    <DrawingBrush x:Key="TransparencyCheckerBrush"
+                  TileMode="Tile"
+                  Stretch="None"
+                  SourceRect="0,0,20,20"
+                  DestinationRect="0,0,20,20">
+      <DrawingBrush.Drawing>
+        <DrawingGroup>
+          <DrawingGroup.Children>
+            <GeometryDrawing Brush="#FBF4E6" Geometry="M0,0 L20,0 L20,20 L0,20 Z" />
+            <GeometryDrawing Brush="#EBDCC0" Geometry="M0,0 L10,0 L10,10 L0,10 Z M10,10 L20,10 L20,20 L10,20 Z" />
+          </DrawingGroup.Children>
+        </DrawingGroup>
+      </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- Radius scale -->
+    <CornerRadius x:Key="RadiusSm">9</CornerRadius>
+    <CornerRadius x:Key="RadiusMd">10</CornerRadius>
+    <CornerRadius x:Key="RadiusLg">12</CornerRadius>
+    <CornerRadius x:Key="RadiusXl">20</CornerRadius>
   </Application.Resources>
 
   <Application.Styles>
@@ -41,15 +91,47 @@
       <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="20" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusXl}" />
+    </Style>
+
+    <!-- Type scale: use as TextBlock Classes="h1|h2|section|caption|muted" -->
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="25" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LineHeight" Value="31" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="19" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LineHeight" Value="24" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LineHeight" Value="19" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="LineHeight" Value="16" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="LineHeight" Value="18" />
+      <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
     </Style>
 
     <Style Selector="Button">
-      <Setter Property="Background" Value="#FFF7E6" />
+      <Setter Property="Background" Value="{StaticResource ButtonSurfaceBrush}" />
       <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
       <Setter Property="Padding" Value="16,9" />
       <Setter Property="Margin" Value="4" />
       <Setter Property="FontSize" Value="14" />
@@ -58,14 +140,23 @@
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button:pointerover">
-      <Setter Property="Opacity" Value="0.9" />
+      <Setter Property="Background" Value="{StaticResource ButtonHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource MutedBrush}" />
     </Style>
     <Style Selector="Button:pressed">
-      <Setter Property="Opacity" Value="0.82" />
+      <Setter Property="Background" Value="{StaticResource ButtonPressedBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource MutedBrush}" />
     </Style>
     <Style Selector="Button:disabled">
       <Setter Property="Opacity" Value="0.45" />
     </Style>
+    <!-- Focus ring is colour-only: raising BorderThickness would change the control's measured
+         size and shift neighbouring controls by a pixel each time focus moves. -->
+    <Style Selector="Button:focus-visible">
+      <Setter Property="BorderBrush" Value="{StaticResource FocusRingBrush}" />
+      <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+    </Style>
+
     <Style Selector="Button.primary">
       <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
       <Setter Property="Foreground" Value="White" />
@@ -76,45 +167,130 @@
       <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource AccentHoverBrush}" />
     </Style>
+    <Style Selector="Button.primary:pressed">
+      <Setter Property="Background" Value="{StaticResource PrimaryPressedBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource PrimaryPressedBrush}" />
+    </Style>
+    <Style Selector="Button.primary:focus-visible">
+      <Setter Property="BorderBrush" Value="{StaticResource TextBrush}" />
+    </Style>
+
     <Style Selector="Button.ghost">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="Padding" Value="12,8" />
     </Style>
-    <Style Selector="Button.small">
+    <Style Selector="Button.ghost:pointerover">
+      <Setter Property="Background" Value="{StaticResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.ghost:pressed">
+      <Setter Property="Background" Value="{StaticResource GhostPressedBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.ghost:focus-visible">
+      <Setter Property="Background" Value="{StaticResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource FocusRingBrush}" />
+    </Style>
+
+    <!-- Shared compact metrics for both .small and .danger (comma-combined selector avoids
+         duplicating FontSize/Padding/MinHeight/Margin across the two variants). .danger is
+         used standalone in existing markup, so this is an OR of selectors, not AND. -->
+    <Style Selector="Button.small, Button.danger">
       <Setter Property="FontSize" Value="12" />
       <Setter Property="Padding" Value="10,6" />
       <Setter Property="MinHeight" Value="30" />
       <Setter Property="Margin" Value="2" />
     </Style>
+
+    <!-- .danger layers its color variant on top of the shared metrics above -->
     <Style Selector="Button.danger">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Padding" Value="10,6" />
-      <Setter Property="MinHeight" Value="30" />
-      <Setter Property="Margin" Value="2" />
       <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
-      <Setter Property="Background" Value="#FFF1E8" />
-      <Setter Property="BorderBrush" Value="#EBC2AE" />
+      <Setter Property="Background" Value="{StaticResource DangerSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource DangerBorderBrush}" />
+    </Style>
+    <Style Selector="Button.danger:pointerover">
+      <Setter Property="Background" Value="{StaticResource DangerHoverSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+    </Style>
+    <Style Selector="Button.danger:pressed">
+      <Setter Property="Background" Value="{StaticResource DangerPressedSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+    </Style>
+    <Style Selector="Button.danger:focus-visible">
+      <Setter Property="Background" Value="{StaticResource DangerHoverSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+    </Style>
+
+    <!-- Compact square icon button, e.g. panel-mode header controls -->
+    <Style Selector="Button.icon">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="2" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.icon:pointerover">
+      <Setter Property="Background" Value="{StaticResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.icon:pressed">
+      <Setter Property="Background" Value="{StaticResource GhostPressedBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.icon:focus-visible">
+      <Setter Property="Background" Value="{StaticResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource FocusRingBrush}" />
     </Style>
 
     <Style Selector="ComboBox">
       <Setter Property="MinHeight" Value="38" />
       <Setter Property="Padding" Value="11,7" />
-      <Setter Property="Background" Value="#FFF9ED" />
+      <Setter Property="Background" Value="{StaticResource FieldSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+    </Style>
+    <Style Selector="ComboBox:pointerover">
+      <Setter Property="Background" Value="{StaticResource FieldHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource MutedBrush}" />
+    </Style>
+    <Style Selector="ComboBox:focus-visible">
+      <Setter Property="BorderBrush" Value="{StaticResource FocusRingBrush}" />
+      <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+    </Style>
+    <Style Selector="ComboBox:disabled">
+      <Setter Property="Opacity" Value="0.5" />
     </Style>
     <Style Selector="ComboBoxItem">
       <Setter Property="Padding" Value="11,8" />
     </Style>
+
     <Style Selector="TextBox">
       <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Background" Value="{StaticResource FieldSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
     </Style>
+    <Style Selector="TextBox:pointerover">
+      <Setter Property="Background" Value="{StaticResource FieldHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource MutedBrush}" />
+    </Style>
+    <Style Selector="TextBox:focus-within">
+      <Setter Property="BorderBrush" Value="{StaticResource FocusRingBrush}" />
+    </Style>
+    <Style Selector="TextBox:disabled">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+
     <Style Selector="ProgressBar">
       <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
-      <Setter Property="Background" Value="#F2DFC0" />
+      <Setter Property="Background" Value="{StaticResource TrackSurfaceBrush}" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>
   </Application.Styles>
