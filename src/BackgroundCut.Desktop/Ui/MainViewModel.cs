@@ -426,7 +426,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     {
                         try
                         {
-                            historyItem = await _history.SaveAsync(result, item.DisplayName, DateTimeOffset.UtcNow, _activeCancellation.Token);
+                            historyItem = await _history.SaveAsync(result, item.DisplayName, DateTimeOffset.UtcNow, item.SourcePath, _activeCancellation.Token);
                         }
                         catch (OperationCanceledException) when (_activeCancellation.IsCancellationRequested)
                         {

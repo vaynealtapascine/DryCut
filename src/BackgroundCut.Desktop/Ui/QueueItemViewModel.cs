@@ -146,7 +146,7 @@ public sealed class QueueItemViewModel : ObservableObject
             historyItem.ProcessedAtUtc,
             QueueItemState.Completed,
             "Ready",
-            null,
+            historyItem.SourcePath,
             historyItem,
             new ProcessingOptions())
         {

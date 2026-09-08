@@ -288,9 +288,71 @@ public sealed class MainViewModelTests
         Assert.Empty(history.Items);
     }
 
-    private static MainViewModel CreateViewModel(FakeEngine engine, HistoryStore? history = null, Clipboard? clipboard = null)
+    [AvaloniaFact]
+    public async Task RestoredGalleryItemCarriesSourcePathAndAllowsReprocessingWhenFileStillExists()
     {
-        var settings = new Settings();
+        var paths = CreateInputFiles(1);
+        var history = new HistoryStore();
+        try
+        {
+            using (var vm = CreateViewModel(new FakeEngine(), history))
+            {
+                vm.DropPath(paths[0]);
+                await vm.WhenQueueIsIdleAsync();
+            }
+
+            Assert.Equal(paths[0], history.Items.Single().SourcePath);
+
+            // Simulate a restart: a fresh MainViewModel backed by the same on-disk-equivalent history.
+            using var restarted = CreateViewModel(new FakeEngine(), history);
+            await restarted.InitializeAsync();
+            var restoredItem = Assert.Single(restarted.VisibleItems);
+
+            Assert.Equal(paths[0], restoredItem.SourcePath);
+
+            restarted.SelectQueueItemCommand.Execute(restoredItem);
+
+            Assert.True(restarted.CanReprocessSelected);
+            Assert.True(restarted.ApplyQualityCommand.CanExecute(null));
+        }
+        finally
+        {
+            DeleteInputFiles(paths);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task RestoredGalleryItemDegradesGracefullyWhenSourceFileNoLongerExists()
+    {
+        var paths = CreateInputFiles(1);
+        var history = new HistoryStore();
+        using (var vm = CreateViewModel(new FakeEngine(), history))
+        {
+            vm.DropPath(paths[0]);
+            await vm.WhenQueueIsIdleAsync();
+        }
+        DeleteInputFiles(paths);
+
+        using var restarted = CreateViewModel(new FakeEngine(), history);
+        await restarted.InitializeAsync();
+        var restoredItem = Assert.Single(restarted.VisibleItems);
+
+        Assert.Equal(paths[0], restoredItem.SourcePath);
+
+        restarted.SelectQueueItemCommand.Execute(restoredItem);
+
+        Assert.Null(restarted.Before);
+        Assert.False(restarted.CanReprocessSelected);
+        Assert.False(restarted.ApplyQualityCommand.CanExecute(null));
+        Assert.True(restarted.HasResult);
+    }
+
+    private static MainViewModel CreateViewModel(FakeEngine engine, HistoryStore? history = null, Clipboard? clipboard = null) =>
+        CreateViewModel(engine, out _, history, clipboard);
+
+    private static MainViewModel CreateViewModel(FakeEngine engine, out Settings settings, HistoryStore? history = null, Clipboard? clipboard = null)
+    {
+        settings = new Settings();
         return new MainViewModel(
             new RemoveBackgroundUseCase(engine, new Catalog()),
             new ExportImageUseCase(new Exporter(), settings),
@@ -420,7 +482,7 @@ public sealed class MainViewModelTests
         public bool BlockSaves { get; init; }
         public TaskCompletionSource SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async Task<ProcessedImageHistoryItem> SaveAsync(ProcessedImage image, string originalFileName, DateTimeOffset processedAtUtc, CancellationToken cancellationToken = default)
+        public async Task<ProcessedImageHistoryItem> SaveAsync(ProcessedImage image, string originalFileName, DateTimeOffset processedAtUtc, string? sourcePath = null, CancellationToken cancellationToken = default)
         {
             SaveStarted.TrySetResult();
             if (BlockSaves)
@@ -428,7 +490,7 @@ public sealed class MainViewModelTests
             if (SaveFailure is not null)
                 throw SaveFailure;
 
-            var item = new ProcessedImageHistoryItem(Guid.NewGuid(), Path.GetFileName(originalFileName), processedAtUtc, Guid.NewGuid().ToString("N") + ".png");
+            var item = new ProcessedImageHistoryItem(Guid.NewGuid(), Path.GetFileName(originalFileName), processedAtUtc, Guid.NewGuid().ToString("N") + ".png", sourcePath);
             Items.Add(item);
             _images[item.Id] = image;
             return item;

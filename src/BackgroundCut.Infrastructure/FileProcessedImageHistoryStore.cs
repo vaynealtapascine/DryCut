@@ -29,6 +29,7 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         ProcessedImage image,
         string originalFileName,
         DateTimeOffset processedAtUtc,
+        string? sourcePath = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(image);
@@ -38,7 +39,7 @@ public sealed class FileProcessedImageHistoryStore : IProcessedImageHistoryStore
         Directory.CreateDirectory(_historyDirectory);
         var id = Guid.NewGuid();
         var pngFileName = id.ToString("N") + ".png";
-        var item = new ProcessedImageHistoryItem(id, GetDisplayFileName(originalFileName), processedAtUtc, pngFileName);
+        var item = new ProcessedImageHistoryItem(id, GetDisplayFileName(originalFileName), processedAtUtc, pngFileName, sourcePath);
         var pngPath = GetPngPath(id);
         var metadataPath = GetMetadataPath(id);
         var temporaryPngPath = CreateTemporaryPath(pngPath);

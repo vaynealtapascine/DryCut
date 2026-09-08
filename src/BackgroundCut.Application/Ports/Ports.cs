@@ -30,11 +30,17 @@ public interface IClipboardService
 
 public interface IProcessedImageHistoryStore
 {
-    /// <summary>Saves one processed image and metadata without retaining its source path.</summary>
+    /// <summary>
+    /// Saves one processed image and metadata. When <paramref name="sourcePath"/> is provided,
+    /// it is retained as display-only metadata (e.g. to show the original alongside the result
+    /// after a restart) — it is never used to locate or validate anything inside the store, and
+    /// the file it names may later move or be deleted.
+    /// </summary>
     Task<ProcessedImageHistoryItem> SaveAsync(
         ProcessedImage image,
         string originalFileName,
         DateTimeOffset processedAtUtc,
+        string? sourcePath = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Returns metadata only, newest first; no PNG pixels are loaded.</summary>

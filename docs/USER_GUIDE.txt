@@ -61,6 +61,8 @@ PRIVACY
 - The only network feature is the explicit optional-model download.
 - Settings are stored under %LOCALAPPDATA%\BackgroundCut.
 - Temporary processed-image gallery copies are stored under %LOCALAPPDATA%\BackgroundCut\history and are removed after 30 days.
+- Each gallery entry also records the file path of the original image, so the gallery can still show it beside the
+  result after a restart. This path stays on your PC, is never uploaded, and is deleted with the entry.
 
 TROUBLESHOOTING
 ---------------

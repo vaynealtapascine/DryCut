@@ -235,6 +235,64 @@ public sealed class ProcessedImageHistoryStoreTests
         }
     }
 
+    [Fact]
+    public async Task SaveRetainsSourcePathAndEnumerationRoundTripsIt()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var sourcePath = Path.Combine(Path.GetTempPath(), "some-original.png");
+            var saved = await store.SaveAsync(
+                OnePixel(1, 2, 3, 255),
+                "original.png",
+                DateTimeOffset.UtcNow,
+                sourcePath: sourcePath);
+
+            Assert.Equal(sourcePath, saved.SourcePath);
+
+            var items = await store.EnumerateMetadataAsync();
+
+            Assert.Equal(sourcePath, Assert.Single(items).SourcePath);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task EnumerationLoadsPreExistingMetadataThatHasNoSourcePathField()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var store = new FileProcessedImageHistoryStore(directory);
+            var id = Guid.NewGuid();
+            var pngPath = id.ToString("N") + ".png";
+            await File.WriteAllBytesAsync(Path.Combine(directory, pngPath), [1, 2, 3]);
+
+            // Hand-written metadata in the pre-SourcePath format: no "sourcePath" property at all.
+            var oldFormatJson = "{"
+                + $"\"id\":\"{id:D}\","
+                + "\"originalFileName\":\"legacy.png\","
+                + "\"processedAtUtc\":\"2025-01-01T00:00:00Z\","
+                + $"\"pngPath\":\"{pngPath}\""
+                + "}";
+            await File.WriteAllTextAsync(Path.Combine(directory, id.ToString("N") + ".json"), oldFormatJson);
+
+            var items = await store.EnumerateMetadataAsync();
+
+            var item = Assert.Single(items);
+            Assert.Equal(id, item.Id);
+            Assert.Null(item.SourcePath);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static ProcessedImage OnePixel(byte red, byte green, byte blue, byte alpha) =>
         new([red, green, blue, alpha], 1, 1);
 
