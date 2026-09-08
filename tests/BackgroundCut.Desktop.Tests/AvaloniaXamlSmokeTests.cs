@@ -1,4 +1,17 @@
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Logging;
+using Avalonia.Media;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using BackgroundCut.Application.Ports;
+using BackgroundCut.Desktop.Ui;
+using BackgroundCut.Domain.Models;
+using BackgroundCut.Infrastructure;
 using Xunit;
 
 namespace BackgroundCut.Desktop.Tests;
@@ -23,5 +36,243 @@ public sealed class AvaloniaXamlSmokeTests
         Assert.Equal("BackgroundCut settings", window.Title);
         Assert.Equal(620, window.Width);
         window.Close();
+    }
+
+    // MainWindow.axaml and SettingsWindow.axaml use reflection bindings
+    // (AvaloniaUseCompiledBindingsByDefault=false), so a typo'd Binding path does not fail the
+    // build and does not throw at runtime -- it just logs to Avalonia's LogArea.Binding sink and
+    // silently leaves the target property at its default value. Avalonia 11.3.20 has no
+    // Avalonia.Data.Core.Diagnostics.BindingDiagnostics event to hook (confirmed by reflecting
+    // over the shipped Avalonia.Base.dll: no such type exists in this version). The supported,
+    // version-stable way to observe these failures is Avalonia.Logging.Logger.Sink, which every
+    // binding-error code path in Avalonia.Base ultimately writes through. These tests install a
+    // capturing sink, force the real windows through a full show + layout + binding pass, and
+    // assert nothing was logged to LogArea.Binding at Warning or above.
+    [AvaloniaFact]
+    public async Task MainWindowBindingsResolveWithoutErrors()
+    {
+        using var vm = await MainViewModelTests.CreateViewModelForBindingTestsAsync();
+
+        var errors = new List<string>();
+        using (CaptureBindingErrors(errors))
+        {
+            var window = new MainWindow { DataContext = vm };
+            PrepareForHeadlessLayout(window);
+            window.Show();
+            PumpDispatcher();
+            window.Close();
+        }
+
+        Assert.True(errors.Count == 0, FormatBindingFailure("MainWindow", errors));
+    }
+
+    // Panel mode's layout is IsVisible="{Binding IsPanelMode}" -- while IsVisible is false its
+    // bindings never get a chance to evaluate, so the ordinary MainWindowBindingsResolveWithoutErrors
+    // test (which leaves IsFullMode active) would never surface a typo in that half of the XAML.
+    // This test switches the real ToggleViewModeCommand so panel mode is the one actually shown.
+    [AvaloniaFact]
+    public async Task MainWindowPanelModeBindingsResolveWithoutErrors()
+    {
+        using var vm = await MainViewModelTests.CreateViewModelForBindingTestsAsync();
+        vm.ToggleViewModeCommand.Execute(null);
+        Assert.True(vm.IsPanelMode);
+
+        var errors = new List<string>();
+        using (CaptureBindingErrors(errors))
+        {
+            var window = new MainWindow { DataContext = vm };
+            PrepareForHeadlessLayout(window);
+            window.Show();
+            PumpDispatcher();
+            window.Close();
+        }
+
+        Assert.True(errors.Count == 0, FormatBindingFailure("MainWindow (panel mode)", errors));
+    }
+
+    [AvaloniaFact]
+    public async Task SettingsWindowBindingsResolveWithoutErrors()
+    {
+        var modelDirectory = Directory.CreateTempSubdirectory("BackgroundCut-settings-binding-test");
+        try
+        {
+            var settingsStore = new FakeSettingsStore();
+            var catalog = new FileModelCatalog(modelDirectory.FullName);
+            var downloader = new ModelDownloader(new HttpClient());
+            var initial = await settingsStore.LoadExportSettingsAsync(CancellationToken.None);
+            var vm = new SettingsViewModel(
+                settingsStore,
+                new FakeFileDialogService(),
+                new FakeExplorerIntegration(),
+                catalog,
+                downloader,
+                close: () => { },
+                initial);
+            await vm.InitializeAsync();
+
+            var errors = new List<string>();
+            using (CaptureBindingErrors(errors))
+            {
+                var window = new SettingsWindow { DataContext = vm };
+                PrepareForHeadlessLayout(window);
+                window.Show();
+                PumpDispatcher();
+                window.Close();
+            }
+
+            Assert.True(errors.Count == 0, FormatBindingFailure("SettingsWindow", errors));
+        }
+        finally
+        {
+            modelDirectory.Delete(recursive: true);
+        }
+    }
+
+    // QueueItemViewModel exposes SelectionBorderColor/SelectionBackgroundColor/StatusColor as
+    // plain strings (e.g. "#D97706"), and MainWindow.axaml binds them straight onto IBrush-typed
+    // properties (BorderBrush/Background). This only produces a highlighted row if Avalonia's
+    // binding pipeline actually type-converts string -> IBrush; otherwise every row in the
+    // queue/gallery list renders with a null brush and looks identical. This test builds a real
+    // MainWindow with a queue item, forces the ItemsControl template to realize, walks the visual
+    // tree to the realized Border, and asserts the conversion actually happened.
+    [AvaloniaFact]
+    public async Task QueueItemStringColorsConvertToBrushesInTheRealVisualTree()
+    {
+        using var vm = await MainViewModelTests.CreateViewModelForBindingTestsAsync();
+        var item = Assert.Single(vm.VisibleItems);
+
+        var window = new MainWindow { DataContext = vm };
+        PrepareForHeadlessLayout(window);
+        window.Show();
+        PumpDispatcher();
+
+        var border = window.GetVisualDescendants()
+            .OfType<Border>()
+            .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, item));
+        Assert.NotNull(border);
+
+        var expectedBorderColor = Color.Parse(item.SelectionBorderColor);
+        var expectedBackgroundColor = Color.Parse(item.SelectionBackgroundColor);
+
+        Assert.NotNull(border!.BorderBrush);
+        Assert.NotNull(border.Background);
+        var actualBorderBrush = Assert.IsAssignableFrom<ISolidColorBrush>(border.BorderBrush);
+        var actualBackgroundBrush = Assert.IsAssignableFrom<ISolidColorBrush>(border.Background);
+        Assert.Equal(expectedBorderColor, actualBorderBrush.Color);
+        Assert.Equal(expectedBackgroundColor, actualBackgroundBrush.Color);
+
+        window.Close();
+    }
+
+    // TestAppBuilder.cs configures the headless platform with the default UseHeadlessDrawing=true,
+    // which swaps in Avalonia's HeadlessFontManagerStub for text shaping. That stub only recognizes
+    // a single synthetic family, "$Default" -- it does not actually load font files. App.axaml sets
+    // FontFamily="fonts:Inter#Inter" on every Window (inherited by every descendant TextBlock), so
+    // any real layout pass over these windows throws
+    // "InvalidOperationException: Could not create glyphTypeface. Font family: Inter ..." from deep
+    // inside TextBlock's measure/render, well before layout reaches the parts of the tree these
+    // tests care about (confirmed empirically: with the real font family, zero Borders realize
+    // before Show() throws). This is a pre-existing gap in the headless test harness, not something
+    // introduced by these bindings -- the supported fix is TestAppBuilder.cs using
+    // `UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })`, but that
+    // file is out of scope for this change. Setting a *local* FontFamily value on the window here
+    // achieves the same effect for just these tests without touching TestAppBuilder.cs or any
+    // production XAML/resources: a local value on Window beats the App-level style setter (per
+    // Avalonia's normal value-precedence rules), so it and every inheriting descendant resolve to
+    // the stub's "$Default" family and layout completes normally.
+    private static void PrepareForHeadlessLayout(Window window) => window.FontFamily = FontFamily.Default;
+
+    private static void PumpDispatcher()
+    {
+        // Headless layout/binding work is queued onto the dispatcher rather than executed
+        // synchronously by Show(); running the loop a couple of times drains layout, then the
+        // bindings/templates that layout triggers.
+        for (var i = 0; i < 3; i++)
+            Dispatcher.UIThread.RunJobs();
+    }
+
+    private static string FormatBindingFailure(string windowName, IReadOnlyList<string> errors) =>
+        $"{errors.Count} binding error(s) on {windowName}:{Environment.NewLine}{string.Join(Environment.NewLine, errors)}";
+
+    private static BindingErrorScope CaptureBindingErrors(List<string> messages) => new(messages);
+
+    private sealed class BindingErrorScope : IDisposable
+    {
+        private readonly ILogSink? _previous;
+
+        public BindingErrorScope(List<string> messages)
+        {
+            _previous = Logger.Sink;
+            Logger.Sink = new CapturingSink(messages, _previous);
+        }
+
+        public void Dispose() => Logger.Sink = _previous;
+    }
+
+    private sealed class CapturingSink(List<string> messages, ILogSink? inner) : ILogSink
+    {
+        public bool IsEnabled(LogEventLevel level, string area) =>
+            IsBindingWarning(level, area) || (inner?.IsEnabled(level, area) ?? false);
+
+        public void Log(LogEventLevel level, string area, object? source, string messageTemplate)
+        {
+            if (IsBindingWarning(level, area))
+                messages.Add($"[{level}] {Describe(source)}: {messageTemplate}");
+            inner?.Log(level, area, source, messageTemplate);
+        }
+
+        public void Log(LogEventLevel level, string area, object? source, string messageTemplate, params object?[] propertyValues)
+        {
+            if (IsBindingWarning(level, area))
+                messages.Add($"[{level}] {Describe(source)}: {messageTemplate} ({string.Join(", ", propertyValues)})");
+            inner?.Log(level, area, source, messageTemplate, propertyValues);
+        }
+
+        private static bool IsBindingWarning(LogEventLevel level, string area) =>
+            area == LogArea.Binding && level >= LogEventLevel.Warning;
+
+        private static string Describe(object? source) => source switch
+        {
+            null => "<null>",
+            AvaloniaObject avaloniaObject => avaloniaObject.GetType().Name,
+            _ => source.ToString() ?? source.GetType().Name
+        };
+    }
+
+    private sealed class FakeSettingsStore : ISettingsStore
+    {
+        private ExportSettings _settings = ExportSettings.Default;
+        private UiSettings _uiSettings = UiSettings.Default;
+
+        public Task<ExportSettings> LoadExportSettingsAsync(CancellationToken cancellationToken) => Task.FromResult(_settings);
+
+        public Task SaveExportSettingsAsync(ExportSettings settings, CancellationToken cancellationToken)
+        {
+            _settings = settings;
+            return Task.CompletedTask;
+        }
+
+        public Task<UiSettings> LoadUiSettingsAsync(CancellationToken cancellationToken) => Task.FromResult(_uiSettings);
+
+        public Task SaveUiSettingsAsync(UiSettings settings, CancellationToken cancellationToken)
+        {
+            _uiSettings = settings;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeFileDialogService : IFileDialogService
+    {
+        public Task<IReadOnlyList<string>> PickImagesAsync() => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<string?> PickSavePathAsync(string suggestedName) => Task.FromResult<string?>(null);
+        public Task<string?> PickFolderAsync(string? currentFolder) => Task.FromResult<string?>(null);
+    }
+
+    private sealed class FakeExplorerIntegration : IExplorerIntegration
+    {
+        public bool IsSupported => false;
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task EnableAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DisableAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
