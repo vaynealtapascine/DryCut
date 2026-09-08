@@ -125,6 +125,116 @@ internal sealed class AvaloniaPreviewBitmapFactory : Ui.IPreviewBitmapFactory
     }
 }
 
+// Reads image content back off the system clipboard for Ctrl+V paste. Everything downstream of
+// MainViewModel.EnqueuePaths is path-based (ImageInput, QueueItemViewModel.SourcePath, the history
+// store's persisted SourcePath, CanReprocessSelected/RetryCommand), so a raw bitmap payload must be
+// materialised to a real file before it is handed back; a file-drop payload (copying a file in
+// Explorer/Finder puts paths on the clipboard) is returned as-is with no temp file at all.
+internal sealed class AvaloniaClipboardImageSource(Func<Window?> ownerProvider) : Ui.IClipboardImageSource
+{
+    // Mirrors AvaloniaClipboardService.PngClipboardFormat: this app writes real (non-premultiplied)
+    // alpha under the platform "PNG" format on copy, so reading it back first round-trips a
+    // BackgroundCut-produced image losslessly. Other bitmap formats are a lossy-alpha fallback.
+    private static readonly DataFormat<byte[]> PngClipboardFormat = DataFormat.CreateBytesPlatformFormat("PNG");
+
+    // Pasted bitmaps live in their own app-owned folder, never the history store's folder — the
+    // history store sweeps GUID-named files there on its own retention schedule and must not be
+    // handed foreign files to reason about.
+    private static readonly string PastedImagesDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "BackgroundCut",
+        "pasted");
+
+    // A pasted temp file is referenced by a queue item (and, once processed, a history entry) by
+    // path, so it must outlive processing. It cannot simply be deleted after enqueueing. Instead,
+    // each paste sweeps away its own previous stragglers older than the same 30-day window the
+    // gallery already uses (ProcessedImageHistoryPolicy.Retention / MainViewModel.RetentionNotice):
+    // by the time a pasted file is this old, any history entry it fed has itself already expired
+    // and been cleaned up, so nothing still points at it.
+    private static readonly TimeSpan MaxAge = TimeSpan.FromDays(30);
+
+    public async Task<IReadOnlyList<string>> ReadImagePathsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var owner = ownerProvider() ?? throw new InvalidOperationException("The main window is not available.");
+        var clipboard = TopLevel.GetTopLevel(owner)?.Clipboard
+            ?? throw new InvalidOperationException("The system clipboard is not available.");
+
+        // Cheapest and most faithful: a file copied in Explorer/Finder needs no temp file at all.
+        var dataTransfer = await clipboard.TryGetDataAsync();
+        if (dataTransfer is not null)
+        {
+            var files = await dataTransfer.TryGetFilesAsync();
+            var filePaths = (files ?? [])
+                .Where(file => file.Path.IsFile)
+                .Select(file => file.Path.LocalPath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .ToArray();
+            if (filePaths.Length > 0) return filePaths;
+
+            // Prefer the "PNG" platform format: it is exactly what this app writes on copy (see
+            // AvaloniaClipboardService.CopyAsync), so pasting a BackgroundCut result round-trips
+            // real alpha instead of the lossy alpha most bitmap clipboard formats carry.
+            var pngBytes = await dataTransfer.TryGetValueAsync(PngClipboardFormat);
+            if (pngBytes is { Length: > 0 })
+                return [WritePastedFile(pngBytes, ".png")];
+
+            var bitmap = await dataTransfer.TryGetBitmapAsync();
+            if (bitmap is not null)
+            {
+                using (bitmap)
+                {
+                    using var stream = new MemoryStream();
+                    bitmap.Save(stream);
+                    return [WritePastedFile(stream.ToArray(), ".png")];
+                }
+            }
+        }
+
+        return [];
+    }
+
+    private static string WritePastedFile(byte[] bytes, string extension)
+    {
+        Directory.CreateDirectory(PastedImagesDirectory);
+        SweepStragglers();
+
+        var name = $"pasted-{DateTime.Now:yyyy-MM-dd-HHmmss}{extension}";
+        var path = Path.Combine(PastedImagesDirectory, name);
+        // Guard against two pastes landing in the same second.
+        var attempt = 1;
+        while (File.Exists(path))
+            path = Path.Combine(PastedImagesDirectory, $"pasted-{DateTime.Now:yyyy-MM-dd-HHmmss}-{++attempt}{extension}");
+
+        File.WriteAllBytes(path, bytes);
+        return path;
+    }
+
+    private static void SweepStragglers()
+    {
+        try
+        {
+            var cutoff = DateTime.UtcNow - MaxAge;
+            foreach (var file in Directory.EnumerateFiles(PastedImagesDirectory))
+            {
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(file) < cutoff)
+                        File.Delete(file);
+                }
+                catch
+                {
+                    // Best effort: a locked or already-removed straggler is not worth failing the paste over.
+                }
+            }
+        }
+        catch
+        {
+            // Best effort; a failed sweep must not block the paste that triggered it.
+        }
+    }
+}
+
 internal sealed class AvaloniaClipboardService(
     Func<Window?> ownerProvider,
     Ui.IPreviewBitmapFactory previewFactory) : IClipboardService
@@ -230,10 +340,12 @@ internal sealed class DesktopServices : Ui.IDesktopServices
         _explorer = explorer;
         FileDialogs = new AvaloniaFileDialogs(ownerProvider);
         Preview = new AvaloniaPreviewBitmapFactory();
+        ClipboardImages = new AvaloniaClipboardImageSource(ownerProvider);
     }
 
     public Ui.IFileDialogService FileDialogs { get; }
     public Ui.IPreviewBitmapFactory Preview { get; }
+    public Ui.IClipboardImageSource ClipboardImages { get; }
 
     public async Task OpenSettingsAsync()
     {

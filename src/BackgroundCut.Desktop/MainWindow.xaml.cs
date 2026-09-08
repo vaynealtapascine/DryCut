@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using BackgroundCut.Desktop.Ui;
 
@@ -24,6 +25,23 @@ public partial class MainWindow : Window
         Opened += OnOpened;
         DataContextChanged += OnDataContextChanged;
         PropertyChanged += OnWindowPropertyChanged;
+
+        // Wired here rather than a <Window.KeyBindings> entry in MainWindow.xaml: this app owns no
+        // Ctrl+V TextBox editing of its own (Settings' TextBox handles its own paste via the normal
+        // text-input gesture), so a global KeyBindings entry would fire even while the user is
+        // typing there. Tunnelling lets us check focus first and simply not handle the event when a
+        // TextBox has it, leaving the box's own paste behavior untouched.
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.V || e.KeyModifiers != KeyModifiers.Control && e.KeyModifiers != KeyModifiers.Meta) return;
+        if (FocusManager?.GetFocusedElement() is TextBox) return;
+        if (DataContext is not MainViewModel viewModel) return;
+
+        e.Handled = true;
+        viewModel.PasteCommand.Execute(null);
     }
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);

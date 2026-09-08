@@ -64,6 +64,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _history = history;
 
         ChooseImageCommand = new AsyncCommand(_ => ChooseImagesAsync());
+        PasteCommand = new AsyncCommand(_ => PasteFromClipboardAsync());
         CopyCommand = new AsyncCommand(_ => CopyItemAsync(SelectedItem), _ => SelectedItem?.CanCopy == true);
         SaveCommand = new AsyncCommand(_ => SaveAsync(), _ => HasResult);
         SaveAsCommand = new AsyncCommand(_ => SaveAsAsync(), _ => HasResult);
@@ -241,6 +242,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     ];
 
     public AsyncCommand ChooseImageCommand { get; }
+    public AsyncCommand PasteCommand { get; }
     public AsyncCommand CopyCommand { get; }
     public AsyncCommand SaveCommand { get; }
     public AsyncCommand SaveAsCommand { get; }
@@ -388,6 +390,30 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
     public void DropPath(string? path) => EnqueuePaths(path is null ? [] : [path]);
     public void DropPaths(IEnumerable<string> paths) => EnqueuePaths(paths);
+
+    public async Task PasteFromClipboardAsync()
+    {
+        try
+        {
+            var paths = await _desktop.ClipboardImages.ReadImagePathsAsync(CancellationToken.None);
+            if (paths.Count == 0)
+            {
+                _standaloneError = true;
+                Status = "No image was found on the clipboard. Copy an image, then try again.";
+                ErrorDetails = "";
+                RefreshViewState();
+                return;
+            }
+            EnqueuePaths(paths);
+        }
+        catch (Exception exception)
+        {
+            _standaloneError = true;
+            Status = "Pasting from the clipboard didn't work. Try dragging an image into the window instead.";
+            ErrorDetails = exception.ToString();
+            RefreshViewState();
+        }
+    }
 
     public Task WhenQueueIsIdleAsync() => _queueTask ?? Task.CompletedTask;
 

@@ -1,3 +1,5 @@
+![AI Disclosure: Repo code is fully AI-generated. Makes use of openai/gpt-5.6-sol, openai/gpt-5.6-luna, anthropic/claude-opus-5, and anthropic/claude-sonnet-5](assets/ai-transparency-disclosure.png)
+
 # BackgroundCut
 
 BackgroundCut is a private, local desktop app for removing image backgrounds on Windows, macOS, and Linux. Drop in one photo or a batch, review the transparent results, then copy or save them as PNGs.

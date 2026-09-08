@@ -26,6 +26,79 @@ public sealed class MainViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task PasteWithAValidImageOnTheClipboardEnqueuesIt()
+    {
+        var paths = CreateInputFiles(1);
+        var engine = new FakeEngine();
+        var clipboardImages = new ClipboardImageSource { Paths = [paths[0]] };
+        using var vm = CreateViewModel(engine, clipboardImages);
+
+        try
+        {
+            await vm.PasteFromClipboardAsync();
+            await vm.WhenQueueIsIdleAsync();
+
+            Assert.Single(vm.VisibleItems);
+            Assert.True(engine.Started);
+        }
+        finally
+        {
+            DeleteInputFiles(paths);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PasteWithFilePathsOnTheClipboardEnqueuesThemDirectly()
+    {
+        var paths = CreateInputFiles(2);
+        var engine = new FakeEngine();
+        var clipboardImages = new ClipboardImageSource { Paths = paths };
+        using var vm = CreateViewModel(engine, clipboardImages);
+
+        try
+        {
+            await vm.PasteFromClipboardAsync();
+            await vm.WhenQueueIsIdleAsync();
+
+            Assert.Equal(paths.OrderBy(p => p), engine.ProcessedPaths.OrderBy(p => p));
+        }
+        finally
+        {
+            DeleteInputFiles(paths);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PasteWithNothingOnTheClipboardSetsStatusAndEnqueuesNothing()
+    {
+        var engine = new FakeEngine();
+        var clipboardImages = new ClipboardImageSource();
+        using var vm = CreateViewModel(engine, clipboardImages);
+
+        await vm.PasteFromClipboardAsync();
+
+        Assert.False(engine.Started);
+        Assert.Empty(vm.VisibleItems);
+        Assert.Contains("No image was found", vm.Status);
+        Assert.True(vm.HasError);
+    }
+
+    [AvaloniaFact]
+    public async Task PasteWhenClipboardReadThrowsReportsAnErrorInsteadOfPropagating()
+    {
+        var engine = new FakeEngine();
+        var clipboardImages = new ClipboardImageSource { Failure = new InvalidOperationException("clipboard locked") };
+        using var vm = CreateViewModel(engine, clipboardImages);
+
+        await vm.PasteFromClipboardAsync();
+
+        Assert.False(engine.Started);
+        Assert.Empty(vm.VisibleItems);
+        Assert.Contains("didn't work", vm.Status, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("clipboard locked", vm.ErrorDetails);
+    }
+
+    [AvaloniaFact]
     public void DefaultsUseApproachableQualityCopy()
     {
         using var vm = CreateViewModel(new FakeEngine());
@@ -451,6 +524,18 @@ public sealed class MainViewModelTests
             history);
     }
 
+    private static MainViewModel CreateViewModel(FakeEngine engine, ClipboardImageSource clipboardImages, HistoryStore? history = null)
+    {
+        var settings = new Settings();
+        return new MainViewModel(
+            new RemoveBackgroundUseCase(engine, new Catalog()),
+            new ExportImageUseCase(new Exporter(), settings),
+            new Clipboard(),
+            settings,
+            new Desktop(clipboardImages),
+            history);
+    }
+
     private static string[] CreateInputFiles(int count)
     {
         var directory = Path.Combine(Path.GetTempPath(), "BackgroundCut-desktop-tests", Guid.NewGuid().ToString("N"));
@@ -550,11 +635,21 @@ public sealed class MainViewModelTests
         }
     }
 
-    private sealed class Desktop : IDesktopServices
+    private sealed class Desktop(IClipboardImageSource? clipboardImages = null) : IDesktopServices
     {
         public IFileDialogService FileDialogs { get; } = new Dialogs();
         public IPreviewBitmapFactory Preview { get; } = new PreviewFactory();
+        public IClipboardImageSource ClipboardImages { get; } = clipboardImages ?? new ClipboardImageSource();
         public Task OpenSettingsAsync() => Task.CompletedTask;
+    }
+
+    private sealed class ClipboardImageSource : IClipboardImageSource
+    {
+        public IReadOnlyList<string> Paths { get; set; } = [];
+        public Exception? Failure { get; set; }
+
+        public Task<IReadOnlyList<string>> ReadImagePathsAsync(CancellationToken cancellationToken) =>
+            Failure is not null ? Task.FromException<IReadOnlyList<string>>(Failure) : Task.FromResult(Paths);
     }
 
     private sealed class Dialogs : IFileDialogService
