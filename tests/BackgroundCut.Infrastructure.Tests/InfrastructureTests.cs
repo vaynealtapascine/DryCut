@@ -74,6 +74,35 @@ public sealed class InfrastructureTests
     }
 
     [Fact]
+    public async Task JsonUiSettingsRoundTripAtomicallyAndIndependentlyOfExportSettings()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "backgroundcut-tests", Guid.NewGuid().ToString("N"), "settings.json");
+        var store = new JsonSettingsStore(path);
+        var expected = new UiSettings(ViewMode.Panel, 512, AlwaysOnTop: true);
+
+        await store.SaveUiSettingsAsync(expected, CancellationToken.None);
+
+        Assert.Equal(expected, await store.LoadUiSettingsAsync(CancellationToken.None));
+        // Saving UI settings must not disturb export settings, which live in a sibling file.
+        Assert.Equal(ExportSettings.Default, await store.LoadExportSettingsAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task JsonUiSettingsReturnsDefaultsWhenMissingOrCorrupt()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "backgroundcut-tests", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "settings.json");
+        var store = new JsonSettingsStore(path);
+
+        Assert.Equal(UiSettings.Default, await store.LoadUiSettingsAsync(CancellationToken.None));
+
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "ui-settings.json"), "{ not valid json");
+
+        Assert.Equal(UiSettings.Default, await store.LoadUiSettingsAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task PngExportAddsCollisionSuffixAndKeepsAlpha()
     {
         var folder = Path.Combine(Path.GetTempPath(), "backgroundcut-tests", Guid.NewGuid().ToString("N"));

@@ -39,10 +39,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private Bitmap? _after;
     private bool _standaloneError;
     private bool _initialized;
+    private bool _uiSettingsLoaded;
     private bool _disposed;
     private bool _retentionCleanupRunning;
     private int _selectionVersion;
     private int _galleryPage;
+    private ViewMode _viewMode = ViewMode.Full;
+    private double _panelWidth = UiSettings.Default.PanelWidth;
+    private bool _isAlwaysOnTop;
 
     public MainViewModel(
         RemoveBackgroundUseCase remove,
@@ -73,6 +77,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         DeleteQueueItemCommand = new AsyncCommand(parameter => DeleteItemAsync(parameter as QueueItemViewModel), parameter => parameter is QueueItemViewModel item && item.CanDelete);
         ShowNewerItemsCommand = new RelayCommand(_ => ChangeGalleryPage(-1), _ => HasNewerItems);
         ShowOlderItemsCommand = new RelayCommand(_ => ChangeGalleryPage(1), _ => HasOlderItems);
+        ToggleViewModeCommand = new RelayCommand(_ => SetViewMode(_viewMode == ViewMode.Full ? ViewMode.Panel : ViewMode.Full));
+        ToggleAlwaysOnTopCommand = new RelayCommand(_ => IsAlwaysOnTop = !IsAlwaysOnTop);
 
         _etaTimer = new DispatcherTimer
         {
@@ -159,6 +165,33 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             : $"{GalleryItemCount} {(GalleryItemCount == 1 ? "item" : "items")}";
     public string RetentionNotice { get; } = "Processed images stay here for 30 days, then are deleted unless you save them manually.";
 
+    public bool IsPanelMode => _viewMode == ViewMode.Panel;
+    public bool IsFullMode => _viewMode == ViewMode.Full;
+
+    public bool IsAlwaysOnTop
+    {
+        get => _isAlwaysOnTop;
+        set
+        {
+            if (!Set(ref _isAlwaysOnTop, value)) return;
+            _ = SaveUiSettingsAsync();
+        }
+    }
+
+    /// <summary>The window width to use in panel mode. Persisted so panel mode reopens at the size the user left it.</summary>
+    public double PanelWidth
+    {
+        get => _panelWidth;
+        set
+        {
+            var clamped = Math.Max(1, value);
+            if (Math.Abs(_panelWidth - clamped) < 0.5) return;
+            _panelWidth = clamped;
+            Raise();
+            _ = SaveUiSettingsAsync();
+        }
+    }
+
     public string ModelDescription => Model == ModelKind.FastAndAccurate
         ? "The recommended everyday model. Included and usually finishes quickly."
         : "A larger, stronger model for hair, fur, and busy backgrounds. Download it once in Settings.";
@@ -221,6 +254,51 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public AsyncCommand DeleteQueueItemCommand { get; }
     public RelayCommand ShowNewerItemsCommand { get; }
     public RelayCommand ShowOlderItemsCommand { get; }
+    public RelayCommand ToggleViewModeCommand { get; }
+    public RelayCommand ToggleAlwaysOnTopCommand { get; }
+
+    /// <summary>Loads persisted view mode, panel width, and always-on-top preference. Safe to call once at startup.</summary>
+    public async Task LoadUiSettingsAsync()
+    {
+        if (_uiSettingsLoaded) return;
+        _uiSettingsLoaded = true;
+        try
+        {
+            var settings = await _settings.LoadUiSettingsAsync(CancellationToken.None);
+            _viewMode = settings.Mode;
+            _panelWidth = settings.PanelWidth;
+            _isAlwaysOnTop = settings.AlwaysOnTop;
+            Raise(nameof(IsPanelMode));
+            Raise(nameof(IsFullMode));
+            Raise(nameof(PanelWidth));
+            Raise(nameof(IsAlwaysOnTop));
+        }
+        catch
+        {
+            // UI preferences are supplementary; defaults keep the app usable.
+        }
+    }
+
+    private void SetViewMode(ViewMode mode)
+    {
+        if (_viewMode == mode) return;
+        _viewMode = mode;
+        Raise(nameof(IsPanelMode));
+        Raise(nameof(IsFullMode));
+        _ = SaveUiSettingsAsync();
+    }
+
+    private async Task SaveUiSettingsAsync()
+    {
+        try
+        {
+            await _settings.SaveUiSettingsAsync(new UiSettings(_viewMode, _panelWidth, _isAlwaysOnTop), CancellationToken.None);
+        }
+        catch
+        {
+            // UI preferences are best-effort; failing to persist must not disrupt the current session.
+        }
+    }
 
     public async Task InitializeAsync()
     {

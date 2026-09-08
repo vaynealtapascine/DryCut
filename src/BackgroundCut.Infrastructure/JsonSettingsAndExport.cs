@@ -13,10 +13,13 @@ public sealed class JsonSettingsStore : ISettingsStore
         Converters = { new JsonStringEnumConverter() }
     };
     private readonly string _path;
+    private readonly string _uiPath;
 
     public JsonSettingsStore(string? path = null)
     {
         _path = path ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BackgroundCut", "settings.json");
+        var directory = Path.GetDirectoryName(Path.GetFullPath(_path))!;
+        _uiPath = Path.Combine(directory, "ui-settings.json");
     }
 
     public async Task<ExportSettings> LoadExportSettingsAsync(CancellationToken cancellationToken)
@@ -47,6 +50,51 @@ public sealed class JsonSettingsStore : ISettingsStore
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
             File.Move(temporary, _path, overwrite: true);
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(temporary)) File.Delete(temporary);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+            throw;
+        }
+    }
+
+    public async Task<UiSettings> LoadUiSettingsAsync(CancellationToken cancellationToken)
+    {
+        if (!File.Exists(_uiPath)) return UiSettings.Default;
+        try
+        {
+            await using var stream = File.OpenRead(_uiPath);
+            return await JsonSerializer.DeserializeAsync<UiSettings>(stream, JsonOptions, cancellationToken).ConfigureAwait(false) ?? UiSettings.Default;
+        }
+        catch (JsonException)
+        {
+            return UiSettings.Default;
+        }
+    }
+
+    public async Task SaveUiSettingsAsync(UiSettings settings, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var directory = Path.GetDirectoryName(Path.GetFullPath(_uiPath))!;
+        Directory.CreateDirectory(directory);
+        var temporary = _uiPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
+            {
+                await JsonSerializer.SerializeAsync(stream, settings, JsonOptions, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+            File.Move(temporary, _uiPath, overwrite: true);
         }
         catch
         {

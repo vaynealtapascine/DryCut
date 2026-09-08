@@ -5,12 +5,60 @@
         Title="BackgroundCut"
         Icon="/Assets/BackgroundCut.ico"
         MinWidth="1024" MinHeight="680" Width="1320" Height="840"
+        Topmost="{Binding IsAlwaysOnTop}"
         Background="{StaticResource CanvasBrush}"
         UseLayoutRounding="True"
         WindowStartupLocation="CenterScreen"
         DragDrop.AllowDrop="True"
         DragDrop.DragOver="OnDragOver"
         DragDrop.Drop="OnDrop">
+  <Window.Resources>
+    <!-- Shared by the full-mode and panel-mode queue/gallery lists so both stay in lockstep with
+         a single set of bindings instead of two copies that could drift out of sync. -->
+    <DataTemplate x:Key="QueueItemTemplate">
+      <Border Margin="0,0,0,9" Padding="7" CornerRadius="13" BorderThickness="1"
+              BorderBrush="{Binding SelectionBorderColor}" Background="{Binding SelectionBackgroundColor}">
+        <Grid ColumnDefinitions="*,Auto">
+          <Button Grid.Column="0" Margin="0" Padding="0" Background="Transparent" BorderBrush="Transparent"
+                  HorizontalContentAlignment="Stretch"
+                  AutomationProperties.Name="{Binding SelectionAutomationName}"
+                  Command="{Binding $parent[ItemsControl].DataContext.SelectQueueItemCommand}"
+                  CommandParameter="{Binding}">
+            <Grid ColumnDefinitions="66,*">
+              <Border Width="58" Height="58" CornerRadius="10" Background="#F1DFC1" ClipToBounds="True" HorizontalAlignment="Left">
+                <Grid>
+                  <TextBlock Text="✦" Foreground="#B89B78" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                </Grid>
+              </Border>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="3,0,7,0">
+                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                  <TextBlock Text="●" FontSize="8" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{Binding StatusColor}" />
+                  <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <ProgressBar Height="3" Margin="0,6,0,0" Value="{Binding Progress, Mode=OneWay}" Maximum="1" IsVisible="{Binding IsProcessing}" />
+              </StackPanel>
+            </Grid>
+          </Button>
+
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <Button Content="Copy" Classes="small"
+                    Command="{Binding $parent[ItemsControl].DataContext.CopyQueueItemCommand}"
+                    CommandParameter="{Binding}" IsEnabled="{Binding CanCopy}">
+              <ToolTip.Tip>Copy transparent image</ToolTip.Tip>
+            </Button>
+            <Button Content="Delete" Classes="danger"
+                    Command="{Binding $parent[ItemsControl].DataContext.DeleteQueueItemCommand}"
+                    CommandParameter="{Binding}" IsEnabled="{Binding CanDelete}">
+              <ToolTip.Tip>Delete this gallery copy</ToolTip.Tip>
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+O" Command="{Binding ChooseImageCommand}" />
     <KeyBinding Gesture="Meta+O" Command="{Binding ChooseImageCommand}" />
@@ -21,7 +69,8 @@
     <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
   </Window.KeyBindings>
 
-  <Grid Margin="28,24,28,26" RowDefinitions="Auto,*">
+  <Grid>
+  <Grid Margin="28,24,28,26" RowDefinitions="Auto,*" IsVisible="{Binding IsFullMode}">
     <Grid Margin="2,0,2,20" ColumnDefinitions="Auto,*,Auto">
       <Border Width="44" Height="44" CornerRadius="14" Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Center">
         <TextBlock Text="✦" FontSize="23" Foreground="{StaticResource PrimaryBrush}"
@@ -35,6 +84,9 @@
       <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
         <Button Content="Settings" Command="{Binding SettingsCommand}" Classes="ghost">
           <ToolTip.Tip>Output, models, and platform integration</ToolTip.Tip>
+        </Button>
+        <Button Content="⤡ Panel mode" Command="{Binding ToggleViewModeCommand}" Classes="ghost">
+          <ToolTip.Tip>Switch to a narrow panel you can park beside another app</ToolTip.Tip>
         </Button>
         <Button Content="+  Add images" Command="{Binding ChooseImageCommand}" Classes="primary">
           <ToolTip.Tip>Choose one or several images</ToolTip.Tip>
@@ -195,52 +247,7 @@
           </Border>
 
           <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding VisibleItems}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Border Margin="0,0,0,9" Padding="7" CornerRadius="13" BorderThickness="1"
-                          BorderBrush="{Binding SelectionBorderColor}" Background="{Binding SelectionBackgroundColor}">
-                    <Grid ColumnDefinitions="*,Auto">
-                      <Button Grid.Column="0" Margin="0" Padding="0" Background="Transparent" BorderBrush="Transparent"
-                              HorizontalContentAlignment="Stretch"
-                              AutomationProperties.Name="{Binding SelectionAutomationName}"
-                              Command="{Binding $parent[ItemsControl].DataContext.SelectQueueItemCommand}"
-                              CommandParameter="{Binding}">
-                        <Grid ColumnDefinitions="66,*">
-                          <Border Width="58" Height="58" CornerRadius="10" Background="#F1DFC1" ClipToBounds="True" HorizontalAlignment="Left">
-                            <Grid>
-                              <TextBlock Text="✦" Foreground="#B89B78" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                              <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
-                            </Grid>
-                          </Border>
-                          <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="3,0,7,0">
-                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
-                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                              <TextBlock Text="●" FontSize="8" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{Binding StatusColor}" />
-                              <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                            <ProgressBar Height="3" Margin="0,6,0,0" Value="{Binding Progress, Mode=OneWay}" Maximum="1" IsVisible="{Binding IsProcessing}" />
-                          </StackPanel>
-                        </Grid>
-                      </Button>
-
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <Button Content="Copy" Classes="small"
-                                Command="{Binding $parent[ItemsControl].DataContext.CopyQueueItemCommand}"
-                                CommandParameter="{Binding}" IsEnabled="{Binding CanCopy}">
-                          <ToolTip.Tip>Copy transparent image</ToolTip.Tip>
-                        </Button>
-                        <Button Content="Delete" Classes="danger"
-                                Command="{Binding $parent[ItemsControl].DataContext.DeleteQueueItemCommand}"
-                                CommandParameter="{Binding}" IsEnabled="{Binding CanDelete}">
-                          <ToolTip.Tip>Delete this gallery copy</ToolTip.Tip>
-                        </Button>
-                      </StackPanel>
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <ItemsControl ItemsSource="{Binding VisibleItems}" ItemTemplate="{StaticResource QueueItemTemplate}" />
           </ScrollViewer>
 
           <Grid Grid.Row="3" Margin="0,2,0,0" IsVisible="{Binding HasHiddenItems}" ColumnDefinitions="*,Auto,Auto">
@@ -255,5 +262,121 @@
         </Grid>
       </Border>
     </Grid>
+  </Grid>
+
+  <!-- Panel mode: a narrow vertical strip meant to sit beside another app (e.g. Photoshop).
+       MinWidth="1024" on the window makes this impossible while full mode's constraints are
+       active, so MainWindow.xaml.cs swaps the window's MinWidth/MaxWidth/Width when IsPanelMode
+       flips (see ApplyViewMode). -->
+  <Grid Margin="14,14,14,12" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" IsVisible="{Binding IsPanelMode}">
+    <!-- 1. Compact header: wordmark + Settings / pin / back-to-full icon buttons -->
+    <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,10">
+      <TextBlock Text="BackgroundCut" Classes="section" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <Button Grid.Column="1" Classes="icon" Command="{Binding SettingsCommand}">
+        <TextBlock Text="⚙" FontSize="15" />
+        <ToolTip.Tip>Output, models, and platform integration</ToolTip.Tip>
+      </Button>
+      <!-- Two buttons rather than one: a toggle needs to show its state, and the pin previously
+           looked identical whether or not it was active. Swapped on IsAlwaysOnTop via the existing
+           InverseBool converter, so no new converter is needed. -->
+      <Button Grid.Column="2" Classes="icon" Command="{Binding ToggleAlwaysOnTopCommand}"
+              IsVisible="{Binding IsAlwaysOnTop, Converter={StaticResource InverseBool}}">
+        <TextBlock Text="⇧" FontSize="14" Foreground="{StaticResource MutedBrush}" />
+        <ToolTip.Tip>Keep this window on top of others</ToolTip.Tip>
+      </Button>
+      <Button Grid.Column="2" Classes="icon" Command="{Binding ToggleAlwaysOnTopCommand}"
+              Background="{StaticResource AccentSoftBrush}"
+              IsVisible="{Binding IsAlwaysOnTop}">
+        <TextBlock Text="⇧" FontSize="14" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" />
+        <ToolTip.Tip>Always on top is on — click to turn it off</ToolTip.Tip>
+      </Button>
+      <Button Grid.Column="3" Classes="icon" Command="{Binding ToggleViewModeCommand}">
+        <TextBlock Text="⤢" FontSize="14" />
+        <ToolTip.Tip>Switch back to full mode</ToolTip.Tip>
+      </Button>
+    </Grid>
+
+    <!-- 2. Full-width primary action -->
+    <Button Grid.Row="1" Content="+ Add images" Command="{Binding ChooseImageCommand}" Classes="primary"
+            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="4,0,4,10">
+      <ToolTip.Tip>Choose one or several images</ToolTip.Tip>
+    </Button>
+
+    <!-- 3. Compact transparent-result preview, bounded to ~150-190px tall.
+         Grid RowDefinitions="Auto,*" (not a StackPanel) so the Image row gets exactly the space
+         left over instead of sizing to the source bitmap's natural pixel height, same pattern
+         used for the full-mode before/after preview above. -->
+    <Border Grid.Row="2" Classes="card" Padding="8" Height="170" Margin="0,0,0,10" IsVisible="{Binding HasResult}">
+      <Grid RowDefinitions="Auto,*">
+        <TextBlock Text="Transparent result" Classes="caption" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,6" />
+        <Border Grid.Row="1" Background="{StaticResource TransparencyCheckerBrush}" CornerRadius="10" Padding="6" ClipToBounds="True">
+          <Image Source="{Binding After}" Stretch="Uniform" StretchDirection="DownOnly"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- 4. Copy / Save / Save as… -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,*,*" IsVisible="{Binding HasResult}" Margin="0,0,0,10">
+      <Button Grid.Column="0" Content="Copy" Classes="small" Command="{Binding CopyCommand}"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="1" Content="Save" Classes="small" Command="{Binding SaveCommand}"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="2" Content="Save as…" Classes="small primary" Command="{Binding SaveAsCommand}"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+    </Grid>
+
+    <!-- 5. Quality / Edges, stacked vertically (the full-mode horizontal layout won't fit) -->
+    <Border Grid.Row="4" Classes="card" Padding="10" Margin="0,0,0,10">
+      <StackPanel IsEnabled="{Binding CanAdjustQuality}">
+        <TextBlock Text="Quality" Classes="caption" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,4" />
+        <ComboBox ItemsSource="{Binding ModelChoices}" SelectedValue="{Binding Model}"
+                  SelectedValueBinding="{Binding Value}" HorizontalAlignment="Stretch" Margin="0,0,0,10">
+          <ToolTip.Tip><TextBlock Text="{Binding ModelDescription}" /></ToolTip.Tip>
+          <ComboBox.ItemTemplate>
+            <DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Text="Edges" Classes="caption" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,4" />
+        <ComboBox ItemsSource="{Binding RefinementChoices}" SelectedValue="{Binding Refinement}"
+                  SelectedValueBinding="{Binding Value}" HorizontalAlignment="Stretch" Margin="0,0,0,10">
+          <ToolTip.Tip><TextBlock Text="{Binding RefinementDescription}" /></ToolTip.Tip>
+          <ComboBox.ItemTemplate>
+            <DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Content="Reprocess" Command="{Binding ApplyQualityCommand}"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">
+          <ToolTip.Tip>Reprocess selected image</ToolTip.Tip>
+        </Button>
+      </StackPanel>
+    </Border>
+
+    <!-- 6. Queue summary + ETA, with Cancel while working -->
+    <Border Grid.Row="5" Background="#FFF3D8" CornerRadius="10" Padding="10,8" Margin="0,0,0,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding QueueSummary}" FontSize="11" FontWeight="SemiBold" Foreground="#65432A"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" Classes="small" IsVisible="{Binding IsWorking}" />
+      </Grid>
+    </Border>
+
+    <!-- 7. Queue & gallery list: the centrepiece, takes remaining vertical space and scrolls -->
+    <ScrollViewer Grid.Row="6" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <ItemsControl ItemsSource="{Binding VisibleItems}" ItemTemplate="{StaticResource QueueItemTemplate}" />
+    </ScrollViewer>
+
+    <!-- 8. Newer/Older pager + compact status row -->
+    <StackPanel Grid.Row="7" Margin="0,10,0,0">
+      <Grid IsVisible="{Binding HasHiddenItems}" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
+        <TextBlock Text="100 shown at once" FontSize="10" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="Newer" Command="{Binding ShowNewerItemsCommand}" Classes="small" />
+        <Button Grid.Column="2" Content="Older" Command="{Binding ShowOlderItemsCommand}" Classes="small" Margin="6,0,0,0" />
+      </Grid>
+      <Border Background="#FDEBC8" CornerRadius="8" Padding="9,7">
+        <TextBlock Text="{Binding Status}" FontSize="10" Foreground="#65432A" TextTrimming="CharacterEllipsis" />
+      </Border>
+    </StackPanel>
+  </Grid>
   </Grid>
 </Window>

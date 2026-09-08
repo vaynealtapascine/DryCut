@@ -16,6 +16,8 @@ public interface ISettingsStore
 {
     Task<ExportSettings> LoadExportSettingsAsync(CancellationToken cancellationToken);
     Task SaveExportSettingsAsync(ExportSettings settings, CancellationToken cancellationToken);
+    Task<UiSettings> LoadUiSettingsAsync(CancellationToken cancellationToken);
+    Task SaveUiSettingsAsync(UiSettings settings, CancellationToken cancellationToken);
 }
 
 public interface IExportService

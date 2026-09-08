@@ -21,6 +21,12 @@ public enum ExportPolicy
     AskEveryTime
 }
 
+public enum ViewMode
+{
+    Full,
+    Panel
+}
+
 public sealed record ModelDescriptor(
     ModelKind Kind,
     string Id,
@@ -38,6 +44,14 @@ public sealed record ExportSettings(
     string? DefaultFolder = null)
 {
     public static ExportSettings Default { get; } = new();
+}
+
+public sealed record UiSettings(
+    ViewMode Mode = ViewMode.Full,
+    double PanelWidth = 380,
+    bool AlwaysOnTop = false)
+{
+    public static UiSettings Default { get; } = new();
 }
 
 public sealed record ProcessingOptions(

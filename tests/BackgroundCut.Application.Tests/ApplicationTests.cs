@@ -68,6 +68,8 @@ public sealed class ApplicationTests
     {
         public Task<ExportSettings> LoadExportSettingsAsync(CancellationToken cancellationToken) => Task.FromResult(value);
         public Task SaveExportSettingsAsync(ExportSettings settings, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<UiSettings> LoadUiSettingsAsync(CancellationToken cancellationToken) => Task.FromResult(UiSettings.Default);
+        public Task SaveUiSettingsAsync(UiSettings settings, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeExporter : IExportService

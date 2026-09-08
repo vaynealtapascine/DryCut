@@ -38,6 +38,95 @@ public sealed class MainViewModelTests
     }
 
     [AvaloniaFact]
+    public void DefaultsUseFullViewMode()
+    {
+        using var vm = CreateViewModel(new FakeEngine());
+
+        Assert.True(vm.IsFullMode);
+        Assert.False(vm.IsPanelMode);
+        Assert.False(vm.IsAlwaysOnTop);
+    }
+
+    [AvaloniaFact]
+    public void ToggleViewModeCommandSwitchesBetweenFullAndPanelAndPersists()
+    {
+        using var vm = CreateViewModel(new FakeEngine(), out var settings);
+
+        vm.ToggleViewModeCommand.Execute(null);
+
+        Assert.True(vm.IsPanelMode);
+        Assert.False(vm.IsFullMode);
+        Assert.Equal(ViewMode.Panel, settings.SavedUiSettings.Mode);
+        Assert.Equal(1, settings.UiSaveCount);
+
+        vm.ToggleViewModeCommand.Execute(null);
+
+        Assert.False(vm.IsPanelMode);
+        Assert.True(vm.IsFullMode);
+        Assert.Equal(ViewMode.Full, settings.SavedUiSettings.Mode);
+        Assert.Equal(2, settings.UiSaveCount);
+    }
+
+    [AvaloniaFact]
+    public void ToggleAlwaysOnTopCommandFlipsAndPersistsTheFlag()
+    {
+        using var vm = CreateViewModel(new FakeEngine(), out var settings);
+
+        vm.ToggleAlwaysOnTopCommand.Execute(null);
+
+        Assert.True(vm.IsAlwaysOnTop);
+        Assert.True(settings.SavedUiSettings.AlwaysOnTop);
+
+        vm.ToggleAlwaysOnTopCommand.Execute(null);
+
+        Assert.False(vm.IsAlwaysOnTop);
+        Assert.False(settings.SavedUiSettings.AlwaysOnTop);
+    }
+
+    [AvaloniaFact]
+    public void SettingPanelWidthPersistsAndIgnoresNegligibleChanges()
+    {
+        using var vm = CreateViewModel(new FakeEngine(), out var settings);
+
+        vm.PanelWidth = 420;
+
+        Assert.Equal(420, vm.PanelWidth);
+        Assert.Equal(420, settings.SavedUiSettings.PanelWidth);
+        var savesAfterFirstChange = settings.UiSaveCount;
+
+        vm.PanelWidth = 420.2; // below the 0.5 coalescing threshold
+
+        Assert.Equal(savesAfterFirstChange, settings.UiSaveCount);
+    }
+
+    [AvaloniaFact]
+    public async Task LoadUiSettingsAsyncAppliesPersistedModePanelWidthAndAlwaysOnTop()
+    {
+        using var vm = CreateViewModel(new FakeEngine(), out var settings);
+        settings.Preload(new UiSettings(ViewMode.Panel, 512, AlwaysOnTop: true));
+
+        await vm.LoadUiSettingsAsync();
+
+        Assert.True(vm.IsPanelMode);
+        Assert.Equal(512, vm.PanelWidth);
+        Assert.True(vm.IsAlwaysOnTop);
+    }
+
+    [AvaloniaFact]
+    public async Task LoadUiSettingsAsyncOnlyAppliesOnce()
+    {
+        using var vm = CreateViewModel(new FakeEngine(), out var settings);
+        settings.Preload(new UiSettings(ViewMode.Panel, 512, AlwaysOnTop: true));
+
+        await vm.LoadUiSettingsAsync();
+        vm.ToggleViewModeCommand.Execute(null); // back to full mode
+        settings.Preload(new UiSettings(ViewMode.Panel, 999, AlwaysOnTop: true));
+        await vm.LoadUiSettingsAsync();
+
+        Assert.True(vm.IsFullMode);
+    }
+
+    [AvaloniaFact]
     public async Task UnsupportedDropDoesNotCoverAnExistingResultPanel()
     {
         var history = new HistoryStore();
@@ -430,10 +519,24 @@ public sealed class MainViewModelTests
             Task.FromResult(new ExportedFile("out.png"));
     }
 
-    private sealed class Settings : ISettingsStore
+    internal sealed class Settings : ISettingsStore
     {
+        public UiSettings SavedUiSettings { get; private set; } = UiSettings.Default;
+        public int UiSaveCount { get; private set; }
+
+        /// <summary>Simulates a value already persisted from a previous session, for LoadUiSettingsAsync tests.</summary>
+        public void Preload(UiSettings settings) => SavedUiSettings = settings;
+
         public Task<ExportSettings> LoadExportSettingsAsync(CancellationToken cancellationToken) => Task.FromResult(ExportSettings.Default);
         public Task SaveExportSettingsAsync(ExportSettings settings, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<UiSettings> LoadUiSettingsAsync(CancellationToken cancellationToken) => Task.FromResult(SavedUiSettings);
+
+        public Task SaveUiSettingsAsync(UiSettings settings, CancellationToken cancellationToken)
+        {
+            SavedUiSettings = settings;
+            UiSaveCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class Clipboard : IClipboardService
@@ -523,5 +626,20 @@ public sealed class MainViewModelTests
             }
             return Task.FromResult(expired.Length);
         }
+    }
+
+    /// <summary>
+    /// Builds a MainViewModel with a completed gallery item selected (so nested bindings like
+    /// SelectedItem.Progress/SelectedItem.Status have a real target) and at least one queue item
+    /// visible (so the ItemsControl item template realizes). Reuses this file's existing fakes so
+    /// AvaloniaXamlSmokeTests can exercise real MainWindow bindings without duplicating them.
+    /// </summary>
+    internal static async Task<MainViewModel> CreateViewModelForBindingTestsAsync()
+    {
+        var history = new HistoryStore();
+        await history.SaveAsync(new ProcessedImage([1, 2, 3, 255], 1, 1), "gallery-item.png", DateTimeOffset.UtcNow);
+        var vm = CreateViewModel(new FakeEngine(), history);
+        await vm.InitializeAsync();
+        return vm;
     }
 }
