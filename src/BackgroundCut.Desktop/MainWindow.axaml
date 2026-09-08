@@ -6,7 +6,7 @@
         Icon="/Assets/BackgroundCut.ico"
         MinWidth="1024" MinHeight="680" Width="1320" Height="840"
         Topmost="{Binding IsAlwaysOnTop}"
-        Background="{StaticResource CanvasBrush}"
+        Background="{DynamicResource CanvasBrush}"
         UseLayoutRounding="True"
         WindowStartupLocation="CenterScreen"
         DragDrop.AllowDrop="True"
@@ -17,7 +17,7 @@
          a single set of bindings instead of two copies that could drift out of sync. -->
     <DataTemplate x:Key="QueueItemTemplate">
       <Border Margin="0,0,0,9" Padding="7" CornerRadius="13" BorderThickness="1"
-              BorderBrush="{Binding SelectionBorderColor}" Background="{Binding SelectionBackgroundColor}">
+              Classes="queueItem" Classes.selected="{Binding IsSelected}">
         <Grid ColumnDefinitions="*,Auto">
           <Button Grid.Column="0" Margin="0" Padding="0" Background="Transparent" BorderBrush="Transparent"
                   HorizontalContentAlignment="Stretch"
@@ -25,17 +25,19 @@
                   Command="{Binding $parent[ItemsControl].DataContext.SelectQueueItemCommand}"
                   CommandParameter="{Binding}">
             <Grid ColumnDefinitions="66,*">
-              <Border Width="58" Height="58" CornerRadius="10" Background="#F1DFC1" ClipToBounds="True" HorizontalAlignment="Left">
+              <Border Width="58" Height="58" CornerRadius="10" Background="{DynamicResource ThumbnailPlaceholderBrush}" ClipToBounds="True" HorizontalAlignment="Left">
                 <Grid>
-                  <TextBlock Text="✦" Foreground="#B89B78" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  <TextBlock Text="✦" Foreground="{DynamicResource ThumbnailPlaceholderIconBrush}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
                 </Grid>
               </Border>
               <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="3,0,7,0">
                 <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
                 <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                  <TextBlock Text="●" FontSize="8" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{Binding StatusColor}" />
-                  <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="●" FontSize="8" VerticalAlignment="Center" Margin="0,0,6,0" Classes="statusDot"
+                             Classes.processing="{Binding IsProcessing}" Classes.completed="{Binding IsCompleted}"
+                             Classes.failed="{Binding HasFailed}" />
+                  <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <ProgressBar Height="3" Margin="0,6,0,0" Value="{Binding Progress, Mode=OneWay}" Maximum="1" IsVisible="{Binding IsProcessing}" />
               </StackPanel>
@@ -72,14 +74,14 @@
   <Grid>
   <Grid Margin="28,24,28,26" RowDefinitions="Auto,*" IsVisible="{Binding IsFullMode}">
     <Grid Margin="2,0,2,20" ColumnDefinitions="Auto,*,Auto">
-      <Border Width="44" Height="44" CornerRadius="14" Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Center">
-        <TextBlock Text="✦" FontSize="23" Foreground="{StaticResource PrimaryBrush}"
+      <Border Width="44" Height="44" CornerRadius="14" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
+        <TextBlock Text="✦" FontSize="23" Foreground="{DynamicResource PrimaryBrush}"
                    HorizontalAlignment="Center" VerticalAlignment="Center" />
       </Border>
       <StackPanel Grid.Column="1" Margin="13,0,0,0" VerticalAlignment="Center">
         <TextBlock Text="BackgroundCut" FontSize="25" FontWeight="SemiBold" />
         <TextBlock Text="Private background removal, right on your computer" FontSize="13"
-                   Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0" />
+                   Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0" />
       </StackPanel>
       <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
         <Button Content="Settings" Command="{Binding SettingsCommand}" Classes="ghost">
@@ -102,7 +104,7 @@
                   IsVisible="{Binding IsEmpty, Converter={StaticResource InverseBool}}">
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding FileName}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding SelectedItem.Status}" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" />
+                <TextBlock Text="{Binding SelectedItem.Status}" FontSize="12" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" />
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" IsVisible="{Binding HasResult}">
                 <Button Content="Copy" Command="{Binding CopyCommand}" />
@@ -112,43 +114,43 @@
             </Grid>
 
             <Grid Grid.Row="1">
-              <Border IsVisible="{Binding IsEmpty}" Background="#FFFCF3" BorderBrush="#E7C98F"
+              <Border IsVisible="{Binding IsEmpty}" Background="{DynamicResource EmptyStateSurfaceBrush}" BorderBrush="{DynamicResource EmptyStateBorderBrush}"
                       BorderThickness="1" CornerRadius="16" Padding="30">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540">
-                  <Border Width="76" Height="76" CornerRadius="24" Background="{StaticResource AccentSoftBrush}" Margin="0,0,0,20">
-                    <TextBlock Text="＋" FontSize="38" FontWeight="Light" Foreground="{StaticResource PrimaryBrush}"
+                  <Border Width="76" Height="76" CornerRadius="24" Background="{DynamicResource AccentSoftBrush}" Margin="0,0,0,20">
+                    <TextBlock Text="＋" FontSize="38" FontWeight="Light" Foreground="{DynamicResource PrimaryBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
                   <TextBlock Text="Drop your images here" FontSize="29" FontWeight="SemiBold" HorizontalAlignment="Center" />
                   <TextBlock Text="Add one image or a whole batch. They’ll process in order and stay in your gallery for 30 days."
-                             FontSize="15" LineHeight="23" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                             FontSize="15" LineHeight="23" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
                              TextAlignment="Center" Margin="0,10,0,18" />
                   <Button Content="Choose images" Command="{Binding ChooseImageCommand}" IsDefault="True"
                           Classes="primary" HorizontalAlignment="Center" MinWidth="190" />
-                  <TextBlock Text="JPG, PNG, WebP, BMP, or TIFF" FontSize="12" Foreground="{StaticResource MutedBrush}"
+                  <TextBlock Text="JPG, PNG, WebP, BMP, or TIFF" FontSize="12" Foreground="{DynamicResource MutedBrush}"
                              Margin="0,12,0,0" HorizontalAlignment="Center" />
                 </StackPanel>
               </Border>
 
               <StackPanel IsVisible="{Binding ShowProcessing}" HorizontalAlignment="Center" VerticalAlignment="Center" Width="430">
-                <Border Width="66" Height="66" CornerRadius="22" Background="{StaticResource AccentSoftBrush}" Margin="0,0,0,18">
-                  <TextBlock Text="✦" FontSize="28" Foreground="{StaticResource PrimaryBrush}"
+                <Border Width="66" Height="66" CornerRadius="22" Background="{DynamicResource AccentSoftBrush}" Margin="0,0,0,18">
+                  <TextBlock Text="✦" FontSize="28" Foreground="{DynamicResource PrimaryBrush}"
                              HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <TextBlock Text="{Binding SelectedItem.Status}" FontSize="25" FontWeight="SemiBold" HorizontalAlignment="Center" />
                 <ProgressBar Height="8" Margin="0,22,0,12" Value="{Binding SelectedItem.Progress, Mode=OneWay}" Maximum="1" />
-                <TextBlock Text="{Binding QueueSummary}" HorizontalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
+                <TextBlock Text="{Binding QueueSummary}" HorizontalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
                 <Button Content="Cancel current image" Command="{Binding CancelCommand}" Margin="0,18,0,0" />
               </StackPanel>
 
               <StackPanel IsVisible="{Binding HasError}" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="580">
-                <Border Width="62" Height="62" CornerRadius="20" Background="#FCE8D8" Margin="0,0,0,18">
-                  <TextBlock Text="!" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource DangerBrush}"
+                <Border Width="62" Height="62" CornerRadius="20" Background="{DynamicResource ErrorIconSurfaceBrush}" Margin="0,0,0,18">
+                  <TextBlock Text="!" FontSize="28" FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}"
                              HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <TextBlock Text="This image needs attention" FontSize="25" FontWeight="SemiBold" HorizontalAlignment="Center" />
                 <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,10,0,14" TextAlignment="Center"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{DynamicResource MutedBrush}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                   <Button Content="Try again" Command="{Binding RetryCommand}" Classes="primary" />
                   <Button Content="Open Settings" Command="{Binding SettingsCommand}" />
@@ -166,23 +168,23 @@
                        so the Image would size to the source bitmap's natural pixel height and overflow
                        the card. RowDefinitions="Auto,*" gives the image row exactly the space left over. -->
                   <Grid Grid.Column="0" Margin="0,0,10,0" RowDefinitions="Auto,*">
-                    <TextBlock Text="Original" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{StaticResource MutedBrush}" />
-                    <Border Grid.Row="1" Background="{StaticResource PreviewSurfaceBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
+                    <TextBlock Text="Original" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{DynamicResource MutedBrush}" />
+                    <Border Grid.Row="1" Background="{DynamicResource PreviewSurfaceBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
                       <Image Source="{Binding Before}" Stretch="Uniform" StretchDirection="DownOnly"
                              HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                   </Grid>
                   <Grid Grid.Column="1" Margin="10,0,0,0" RowDefinitions="Auto,*">
-                    <TextBlock Text="Transparent result" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{StaticResource MutedBrush}" />
-                    <Border Grid.Row="1" Background="{StaticResource TransparencyCheckerBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
+                    <TextBlock Text="Transparent result" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{DynamicResource MutedBrush}" />
+                    <Border Grid.Row="1" Background="{DynamicResource TransparencyCheckerBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
                       <Image Source="{Binding After}" Stretch="Uniform" StretchDirection="DownOnly"
                              HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                   </Grid>
                 </Grid>
                 <Grid IsVisible="{Binding HasBefore, Converter={StaticResource InverseBool}}" RowDefinitions="Auto,*">
-                  <TextBlock Text="Transparent result" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{StaticResource MutedBrush}" />
-                  <Border Grid.Row="1" Background="{StaticResource TransparencyCheckerBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
+                  <TextBlock Text="Transparent result" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{DynamicResource MutedBrush}" />
+                  <Border Grid.Row="1" Background="{DynamicResource TransparencyCheckerBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
                     <Image Source="{Binding After}" Stretch="Uniform" StretchDirection="DownOnly"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
@@ -211,17 +213,17 @@
               </ComboBox.ItemTemplate>
             </ComboBox>
             <TextBlock Grid.Column="5" Text="Newly added images use these settings." FontSize="12"
-                       Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="14,0" TextWrapping="Wrap" />
+                       Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="14,0" TextWrapping="Wrap" />
             <Button Grid.Column="6" Content="Reprocess" Command="{Binding ApplyQualityCommand}">
               <ToolTip.Tip>Reprocess selected image</ToolTip.Tip>
             </Button>
           </Grid>
         </Border>
 
-        <Border Grid.Row="2" Background="#FDEBC8" CornerRadius="12" Margin="0,12,0,0" Padding="13,10">
+        <Border Grid.Row="2" Background="{DynamicResource StatusBannerBrush}" CornerRadius="12" Margin="0,12,0,0" Padding="13,10">
           <Grid ColumnDefinitions="Auto,*">
-            <TextBlock Text="●" FontSize="9" Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,9,0" />
-            <TextBlock Grid.Column="1" Text="{Binding Status}" Foreground="#65432A" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock Text="●" FontSize="9" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,9,0" />
+            <TextBlock Grid.Column="1" Text="{Binding Status}" Foreground="{DynamicResource StatusBannerTextBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
           </Grid>
         </Border>
       </Grid>
@@ -231,15 +233,15 @@
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel>
               <TextBlock Text="Queue &amp; gallery" FontSize="19" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding GallerySummary}" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" />
+              <TextBlock Text="{Binding GallerySummary}" FontSize="12" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" />
             </StackPanel>
             <Button Grid.Column="1" Content="+ Add" Command="{Binding ChooseImageCommand}" Classes="small" />
           </Grid>
 
-          <Border Grid.Row="1" Background="#FFF3D8" CornerRadius="12" Padding="12,10" Margin="0,14,0,12">
+          <Border Grid.Row="1" Background="{DynamicResource QueueSummaryBannerBrush}" CornerRadius="12" Padding="12,10" Margin="0,14,0,12">
             <Grid RowDefinitions="Auto,Auto">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="{Binding QueueSummary}" FontSize="12" FontWeight="SemiBold" Foreground="#65432A" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding QueueSummary}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource StatusBannerTextBrush}" VerticalAlignment="Center" />
                 <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" Classes="small" IsVisible="{Binding IsWorking}" />
               </Grid>
               <ProgressBar Grid.Row="1" Height="4" IsIndeterminate="True" Margin="0,8,0,0" IsVisible="{Binding IsWorking}" />
@@ -251,13 +253,13 @@
           </ScrollViewer>
 
           <Grid Grid.Row="3" Margin="0,2,0,0" IsVisible="{Binding HasHiddenItems}" ColumnDefinitions="*,Auto,Auto">
-            <TextBlock Text="Up to 100 items are shown at once." FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="Up to 100 items are shown at once." FontSize="11" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" />
             <Button Grid.Column="1" Content="Newer" Command="{Binding ShowNewerItemsCommand}" Classes="small" />
             <Button Grid.Column="2" Content="Older" Command="{Binding ShowOlderItemsCommand}" Classes="small" Margin="6,0,0,0" />
           </Grid>
 
-          <Border Grid.Row="4" Background="#FFF4D8" BorderBrush="#E9D29F" BorderThickness="1" CornerRadius="11" Padding="11,9" Margin="0,11,0,0">
-            <TextBlock Text="{Binding RetentionNotice}" FontSize="11" LineHeight="16" TextWrapping="Wrap" Foreground="#725632" />
+          <Border Grid.Row="4" Background="{DynamicResource RetentionSurfaceBrush}" BorderBrush="{DynamicResource RetentionBorderBrush}" BorderThickness="1" CornerRadius="11" Padding="11,9" Margin="0,11,0,0">
+            <TextBlock Text="{Binding RetentionNotice}" FontSize="11" LineHeight="16" TextWrapping="Wrap" Foreground="{DynamicResource RetentionTextBrush}" />
           </Border>
         </Grid>
       </Border>
@@ -281,13 +283,13 @@
            InverseBool converter, so no new converter is needed. -->
       <Button Grid.Column="2" Classes="icon" Command="{Binding ToggleAlwaysOnTopCommand}"
               IsVisible="{Binding IsAlwaysOnTop, Converter={StaticResource InverseBool}}">
-        <TextBlock Text="⇧" FontSize="14" Foreground="{StaticResource MutedBrush}" />
+        <TextBlock Text="⇧" FontSize="14" Foreground="{DynamicResource MutedBrush}" />
         <ToolTip.Tip>Keep this window on top of others</ToolTip.Tip>
       </Button>
       <Button Grid.Column="2" Classes="icon" Command="{Binding ToggleAlwaysOnTopCommand}"
-              Background="{StaticResource AccentSoftBrush}"
+              Background="{DynamicResource AccentSoftBrush}"
               IsVisible="{Binding IsAlwaysOnTop}">
-        <TextBlock Text="⇧" FontSize="14" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" />
+        <TextBlock Text="⇧" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource PrimaryBrush}" />
         <ToolTip.Tip>Always on top is on — click to turn it off</ToolTip.Tip>
       </Button>
       <Button Grid.Column="3" Classes="icon" Command="{Binding ToggleViewModeCommand}">
@@ -308,8 +310,8 @@
          used for the full-mode before/after preview above. -->
     <Border Grid.Row="2" Classes="card" Padding="8" Height="170" Margin="0,0,0,10" IsVisible="{Binding HasResult}">
       <Grid RowDefinitions="Auto,*">
-        <TextBlock Text="Transparent result" Classes="caption" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,6" />
-        <Border Grid.Row="1" Background="{StaticResource TransparencyCheckerBrush}" CornerRadius="10" Padding="6" ClipToBounds="True">
+        <TextBlock Text="Transparent result" Classes="caption" Foreground="{DynamicResource MutedBrush}" Margin="2,0,0,6" />
+        <Border Grid.Row="1" Background="{DynamicResource TransparencyCheckerBrush}" CornerRadius="10" Padding="6" ClipToBounds="True">
           <Image Source="{Binding After}" Stretch="Uniform" StretchDirection="DownOnly"
                  HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
@@ -329,7 +331,7 @@
     <!-- 5. Quality / Edges, stacked vertically (the full-mode horizontal layout won't fit) -->
     <Border Grid.Row="4" Classes="card" Padding="10" Margin="0,0,0,10">
       <StackPanel IsEnabled="{Binding CanAdjustQuality}">
-        <TextBlock Text="Quality" Classes="caption" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,4" />
+        <TextBlock Text="Quality" Classes="caption" Foreground="{DynamicResource MutedBrush}" Margin="2,0,0,4" />
         <ComboBox ItemsSource="{Binding ModelChoices}" SelectedValue="{Binding Model}"
                   SelectedValueBinding="{Binding Value}" HorizontalAlignment="Stretch" Margin="0,0,0,10">
           <ToolTip.Tip><TextBlock Text="{Binding ModelDescription}" /></ToolTip.Tip>
@@ -337,7 +339,7 @@
             <DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
-        <TextBlock Text="Edges" Classes="caption" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,4" />
+        <TextBlock Text="Edges" Classes="caption" Foreground="{DynamicResource MutedBrush}" Margin="2,0,0,4" />
         <ComboBox ItemsSource="{Binding RefinementChoices}" SelectedValue="{Binding Refinement}"
                   SelectedValueBinding="{Binding Value}" HorizontalAlignment="Stretch" Margin="0,0,0,10">
           <ToolTip.Tip><TextBlock Text="{Binding RefinementDescription}" /></ToolTip.Tip>
@@ -353,9 +355,9 @@
     </Border>
 
     <!-- 6. Queue summary + ETA, with Cancel while working -->
-    <Border Grid.Row="5" Background="#FFF3D8" CornerRadius="10" Padding="10,8" Margin="0,0,0,10">
+    <Border Grid.Row="5" Background="{DynamicResource QueueSummaryBannerBrush}" CornerRadius="10" Padding="10,8" Margin="0,0,0,10">
       <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Text="{Binding QueueSummary}" FontSize="11" FontWeight="SemiBold" Foreground="#65432A"
+        <TextBlock Text="{Binding QueueSummary}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource StatusBannerTextBrush}"
                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
         <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" Classes="small" IsVisible="{Binding IsWorking}" />
       </Grid>
@@ -369,12 +371,12 @@
     <!-- 8. Newer/Older pager + compact status row -->
     <StackPanel Grid.Row="7" Margin="0,10,0,0">
       <Grid IsVisible="{Binding HasHiddenItems}" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
-        <TextBlock Text="100 shown at once" FontSize="10" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" />
+        <TextBlock Text="100 shown at once" FontSize="10" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" />
         <Button Grid.Column="1" Content="Newer" Command="{Binding ShowNewerItemsCommand}" Classes="small" />
         <Button Grid.Column="2" Content="Older" Command="{Binding ShowOlderItemsCommand}" Classes="small" Margin="6,0,0,0" />
       </Grid>
-      <Border Background="#FDEBC8" CornerRadius="8" Padding="9,7">
-        <TextBlock Text="{Binding Status}" FontSize="10" Foreground="#65432A" TextTrimming="CharacterEllipsis" />
+      <Border Background="{DynamicResource StatusBannerBrush}" CornerRadius="8" Padding="9,7">
+        <TextBlock Text="{Binding Status}" FontSize="10" Foreground="{DynamicResource StatusBannerTextBrush}" TextTrimming="CharacterEllipsis" />
       </Border>
     </StackPanel>
   </Grid>

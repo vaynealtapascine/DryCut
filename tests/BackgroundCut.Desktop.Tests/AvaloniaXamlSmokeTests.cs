@@ -128,15 +128,12 @@ public sealed class AvaloniaXamlSmokeTests
         }
     }
 
-    // QueueItemViewModel exposes SelectionBorderColor/SelectionBackgroundColor/StatusColor as
-    // plain strings (e.g. "#D97706"), and MainWindow.axaml binds them straight onto IBrush-typed
-    // properties (BorderBrush/Background). This only produces a highlighted row if Avalonia's
-    // binding pipeline actually type-converts string -> IBrush; otherwise every row in the
-    // queue/gallery list renders with a null brush and looks identical. This test builds a real
-    // MainWindow with a queue item, forces the ItemsControl template to realize, walks the visual
-    // tree to the realized Border, and asserts the conversion actually happened.
+    // The queue item's selection and status colours come from theme-scoped style classes rather
+    // than hex strings on the view model, so they follow the active theme. Style classes and
+    // DynamicResource lookups both fail silently, so assert the realized Border actually resolved
+    // its brushes from the active theme rather than merely being non-null.
     [AvaloniaFact]
-    public async Task QueueItemStringColorsConvertToBrushesInTheRealVisualTree()
+    public async Task QueueItemColoursResolveFromTheActiveThemeInTheRealVisualTree()
     {
         using var vm = await MainViewModelTests.CreateViewModelForBindingTestsAsync();
         var item = Assert.Single(vm.VisibleItems);
@@ -150,18 +147,26 @@ public sealed class AvaloniaXamlSmokeTests
             .OfType<Border>()
             .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, item));
         Assert.NotNull(border);
+        Assert.Contains("queueItem", border!.Classes);
+        Assert.Equal(item.IsSelected, border.Classes.Contains("selected"));
 
-        var expectedBorderColor = Color.Parse(item.SelectionBorderColor);
-        var expectedBackgroundColor = Color.Parse(item.SelectionBackgroundColor);
+        var expectedBorder = ThemeBrush(item.IsSelected ? "PrimaryBrush" : "BorderBrush");
+        var expectedBackground = ThemeBrush(item.IsSelected ? "AccentSoftBrush" : "SurfaceBrush");
 
-        Assert.NotNull(border!.BorderBrush);
-        Assert.NotNull(border.Background);
-        var actualBorderBrush = Assert.IsAssignableFrom<ISolidColorBrush>(border.BorderBrush);
-        var actualBackgroundBrush = Assert.IsAssignableFrom<ISolidColorBrush>(border.Background);
-        Assert.Equal(expectedBorderColor, actualBorderBrush.Color);
-        Assert.Equal(expectedBackgroundColor, actualBackgroundBrush.Color);
+        var actualBorder = Assert.IsAssignableFrom<ISolidColorBrush>(border.BorderBrush);
+        var actualBackground = Assert.IsAssignableFrom<ISolidColorBrush>(border.Background);
+        Assert.Equal(expectedBorder.Color, actualBorder.Color);
+        Assert.Equal(expectedBackground.Color, actualBackground.Color);
 
         window.Close();
+    }
+
+    private static ISolidColorBrush ThemeBrush(string key)
+    {
+        var app = Avalonia.Application.Current;
+        Assert.NotNull(app);
+        Assert.True(app!.TryGetResource(key, app.ActualThemeVariant, out var value), $"theme resource '{key}' did not resolve");
+        return Assert.IsAssignableFrom<ISolidColorBrush>(value);
     }
 
     // TestAppBuilder.cs configures the headless platform with the default UseHeadlessDrawing=true,

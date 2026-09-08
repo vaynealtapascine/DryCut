@@ -63,7 +63,6 @@ public sealed class QueueItemViewModel : ObservableObject
             Raise(nameof(HasFailed));
             Raise(nameof(CanCopy));
             Raise(nameof(CanDelete));
-            Raise(nameof(StatusColor));
         }
     }
 
@@ -90,12 +89,7 @@ public sealed class QueueItemViewModel : ObservableObject
     public bool IsSelected
     {
         get => _isSelected;
-        internal set
-        {
-            if (!Set(ref _isSelected, value)) return;
-            Raise(nameof(SelectionBorderColor));
-            Raise(nameof(SelectionBackgroundColor));
-        }
+        internal set => Set(ref _isSelected, value);
     }
 
     public bool IsWaiting => State == QueueItemState.Waiting;
@@ -106,15 +100,6 @@ public sealed class QueueItemViewModel : ObservableObject
     public bool CanDelete => !IsProcessing;
     public string TimestampText => AddedAtUtc.LocalDateTime.ToString("g", CultureInfo.CurrentCulture);
     public string SelectionAutomationName => $"Select {DisplayName}, {Status}";
-    public string SelectionBorderColor => IsSelected ? "#D97706" : "#E8D3AE";
-    public string SelectionBackgroundColor => IsSelected ? "#FFF1CC" : "#FFFEF8";
-    public string StatusColor => State switch
-    {
-        QueueItemState.Processing => "#D97706",
-        QueueItemState.Completed => "#7A8B42",
-        QueueItemState.Failed or QueueItemState.Cancelled => "#B84A3A",
-        _ => "#A48A70"
-    };
 
     public static QueueItemViewModel CreatePending(
         string sourcePath,
