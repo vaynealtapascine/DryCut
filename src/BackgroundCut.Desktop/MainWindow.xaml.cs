@@ -12,9 +12,13 @@ public partial class MainWindow : Window
 {
     // Seeded with the XAML startup defaults, since a session that opens straight into panel mode
     // never observes a full-mode size to remember.
+    private const double PanelMinWidth = 340;
+    private const double PanelMaxWidth = 560;
+    private const double PanelMinHeight = 520;
+    private const double FullMinWidth = 1024;
+    private const double FullMinHeight = 680;
     private double _rememberedFullWidth = 1320;
     private double _rememberedFullHeight = 840;
-    private bool _applyingViewMode;
     private MainViewModel? _viewModel;
 
     public MainWindow()
@@ -22,7 +26,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         Opened += OnOpened;
         DataContextChanged += OnDataContextChanged;
-        PropertyChanged += OnWindowPropertyChanged;
+        Resized += OnWindowResized;
 
         // Wired here rather than a <Window.KeyBindings> entry in MainWindow.xaml: this app owns no
         // Ctrl+V TextBox editing of its own (Settings' TextBox handles its own paste via the normal
@@ -71,32 +75,25 @@ public partial class MainWindow : Window
     private void ApplyViewMode(bool panelMode)
     {
         if (_viewModel is null) return;
-        _applyingViewMode = true;
-        try
+
+        if (panelMode)
         {
-            if (panelMode)
-            {
-                // Width/Height read back as NaN once the user has dragged the window, which would
-                // later restore an auto-size instead of the size it actually had.
-                _rememberedFullWidth = FirstReal(Width, ClientSize.Width, _rememberedFullWidth);
-                _rememberedFullHeight = FirstReal(Height, ClientSize.Height, _rememberedFullHeight);
-                MinWidth = 340;
-                MinHeight = 520;
-                MaxWidth = 560;
-                Width = Math.Clamp(_viewModel.PanelWidth, MinWidth, MaxWidth);
-            }
-            else
-            {
-                MinWidth = 1024;
-                MinHeight = 680;
-                MaxWidth = double.PositiveInfinity;
-                Width = _rememberedFullWidth;
-                Height = _rememberedFullHeight;
-            }
+            // Width/Height read back as NaN once the user has dragged the window, which would
+            // otherwise restore an auto-size instead of the size the window actually had.
+            _rememberedFullWidth = FirstReal(Width, ClientSize.Width, _rememberedFullWidth);
+            _rememberedFullHeight = FirstReal(Height, ClientSize.Height, _rememberedFullHeight);
+            MinWidth = PanelMinWidth;
+            MinHeight = PanelMinHeight;
+            MaxWidth = PanelMaxWidth;
+            Width = Math.Clamp(_viewModel.PanelWidth, MinWidth, MaxWidth);
         }
-        finally
+        else
         {
-            _applyingViewMode = false;
+            MinWidth = FullMinWidth;
+            MinHeight = FullMinHeight;
+            MaxWidth = double.PositiveInfinity;
+            Width = _rememberedFullWidth;
+            Height = _rememberedFullHeight;
         }
     }
 
@@ -108,12 +105,13 @@ public partial class MainWindow : Window
         return 0;
     }
 
-    // ClientSizeProperty rather than Resized: it is a plain Avalonia property, so it rides the
-    // PropertyChanged pipeline already wired up here.
-    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    // Only a user-driven resize may redefine the panel width. ApplyViewMode's own resize also
+    // reports a client size, and it differs slightly from the width that was requested, so
+    // recording it shrank the panel on every mode switch until it stuck at MinWidth.
+    private void OnWindowResized(object? sender, WindowResizedEventArgs e)
     {
-        if (_applyingViewMode || e.Property != ClientSizeProperty || _viewModel is not { IsPanelMode: true }) return;
-        _viewModel.PanelWidth = ClientSize.Width;
+        if (e.Reason != WindowResizeReason.User || _viewModel is not { IsPanelMode: true }) return;
+        _viewModel.PanelWidth = e.ClientSize.Width;
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)
