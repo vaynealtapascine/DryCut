@@ -1,8 +1,11 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using BackgroundCut.Application.Ports;
 using BackgroundCut.Domain.Models;
@@ -91,10 +94,34 @@ internal sealed class AvaloniaPreviewBitmapFactory : Ui.IPreviewBitmapFactory
     public Bitmap FromRgba(ProcessedImage image)
     {
         ArgumentNullException.ThrowIfNull(image);
-        using var png = new MemoryStream();
-        ImageSharpImageService.SavePngAsync(image, png, CancellationToken.None).GetAwaiter().GetResult();
-        png.Position = 0;
-        return new Bitmap(png);
+
+        var size = new PixelSize(image.Width, image.Height);
+        // AlphaFormat.Unpremul: ProcessedImage.Pixels holds straight (non-premultiplied) RGBA,
+        // the same representation the old WPF code fed into PixelFormats.Bgra32 (also straight
+        // alpha). Using Premul here would darken translucent pixels instead of reproducing them.
+        var writeable = new WriteableBitmap(size, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Unpremul);
+        using var framebuffer = writeable.Lock();
+
+        var rgba = image.Pixels;
+        var srcStride = image.Width * 4;
+        var rowBytes = framebuffer.RowBytes;
+        var row = new byte[rowBytes];
+        for (var y = 0; y < image.Height; y++)
+        {
+            var srcOffset = y * srcStride;
+            for (var x = 0; x < image.Width; x++)
+            {
+                var si = srcOffset + x * 4;
+                var di = x * 4;
+                row[di] = rgba[si + 2];     // B
+                row[di + 1] = rgba[si + 1]; // G
+                row[di + 2] = rgba[si];     // R
+                row[di + 3] = rgba[si + 3]; // A
+            }
+            Marshal.Copy(row, 0, framebuffer.Address + y * rowBytes, rowBytes);
+        }
+
+        return writeable;
     }
 }
 
@@ -102,6 +129,14 @@ internal sealed class AvaloniaClipboardService(
     Func<Window?> ownerProvider,
     Ui.IPreviewBitmapFactory previewFactory) : IClipboardService
 {
+    // A "platform" format (as opposed to an "application" format) is written to the OS clipboard
+    // under its identifier as-is, with no Avalonia-internal prefix — so this registers the same
+    // literal "PNG" clipboard format name the old WPF build wrote via DataObject.SetData("PNG", ...),
+    // which GIMP, Krita, browsers and Office all read to recover real alpha. Confirmed by reading
+    // Avalonia 11.3.20's Win32 clipboard backend: platform byte[] formats are written to the native
+    // IDataObject as raw, unwrapped bytes in an HGLOBAL under a RegisterClipboardFormat(name) id.
+    private static readonly DataFormat<byte[]> PngClipboardFormat = DataFormat.CreateBytesPlatformFormat("PNG");
+
     public async Task CopyAsync(ProcessedImage image, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(image);
@@ -109,8 +144,29 @@ internal sealed class AvaloniaClipboardService(
         var owner = ownerProvider() ?? throw new InvalidOperationException("The main window is not available.");
         var clipboard = TopLevel.GetTopLevel(owner)?.Clipboard
             ?? throw new InvalidOperationException("The system clipboard is not available.");
+
         using var bitmap = previewFactory.FromRgba(image);
-        await clipboard.SetBitmapAsync(bitmap);
+        using var pngStream = new MemoryStream();
+        await ImageSharpImageService.SavePngAsync(image, pngStream, cancellationToken);
+
+        // Put both flavors on the same clipboard item, mirroring the old WpfClipboardService,
+        // which set DataObject.SetData("PNG", ...) alongside SetImage(...) on one DataObject:
+        // the "PNG" entry carries real alpha for consumers that understand it, and the bitmap
+        // entry is a DIB fallback for consumers that only understand plain images.
+        using var dataTransfer = new DataTransfer();
+        var item = new DataTransferItem();
+        item.Set(DataFormat.Bitmap, bitmap);
+        item.Set(PngClipboardFormat, pngStream.ToArray());
+        dataTransfer.Add(item);
+
+        await clipboard.SetDataAsync(dataTransfer);
+
+        // The old WPF call was Clipboard.SetDataObject(data, copy: true) - the `copy` flag is what
+        // pushed the payload to the OS so it outlived the DataObject and the process. SetDataAsync
+        // alone leaves this process as the clipboard owner serving the data, so without a flush the
+        // content dies when the DataTransfer and bitmap are disposed below (or when BackgroundCut
+        // exits) and the user's copy silently pastes nothing. FlushAsync restores that parity.
+        await clipboard.FlushAsync();
     }
 }
 
