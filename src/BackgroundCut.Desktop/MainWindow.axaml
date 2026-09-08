@@ -110,25 +110,31 @@
 
               <Grid IsVisible="{Binding HasResult}">
                 <Grid IsVisible="{Binding HasBefore}" ColumnDefinitions="*,*">
-                  <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                  <!-- Grid, not StackPanel: a StackPanel measures its children with infinite height,
+                       so the Image would size to the source bitmap's natural pixel height and overflow
+                       the card. RowDefinitions="Auto,*" gives the image row exactly the space left over. -->
+                  <Grid Grid.Column="0" Margin="0,0,10,0" RowDefinitions="Auto,*">
                     <TextBlock Text="Original" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{StaticResource MutedBrush}" />
-                    <Border Background="#F4E8D2" CornerRadius="14" Padding="10" ClipToBounds="True">
-                      <Image Source="{Binding Before}" Stretch="Uniform" />
+                    <Border Grid.Row="1" Background="{StaticResource PreviewSurfaceBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
+                      <Image Source="{Binding Before}" Stretch="Uniform" StretchDirection="DownOnly"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                  </Grid>
+                  <Grid Grid.Column="1" Margin="10,0,0,0" RowDefinitions="Auto,*">
                     <TextBlock Text="Transparent result" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{StaticResource MutedBrush}" />
-                    <Border Background="#F3E3C7" CornerRadius="14" Padding="10" ClipToBounds="True">
-                      <Image Source="{Binding After}" Stretch="Uniform" />
+                    <Border Grid.Row="1" Background="{StaticResource TransparencyCheckerBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
+                      <Image Source="{Binding After}" Stretch="Uniform" StretchDirection="DownOnly"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                  </StackPanel>
+                  </Grid>
                 </Grid>
-                <StackPanel IsVisible="{Binding HasBefore, Converter={StaticResource InverseBool}}">
+                <Grid IsVisible="{Binding HasBefore, Converter={StaticResource InverseBool}}" RowDefinitions="Auto,*">
                   <TextBlock Text="Transparent result" FontWeight="SemiBold" Margin="2,0,0,8" Foreground="{StaticResource MutedBrush}" />
-                  <Border Background="#F3E3C7" CornerRadius="14" Padding="10" ClipToBounds="True">
-                    <Image Source="{Binding After}" Stretch="Uniform" />
+                  <Border Grid.Row="1" Background="{StaticResource TransparencyCheckerBrush}" CornerRadius="14" Padding="10" ClipToBounds="True">
+                    <Image Source="{Binding After}" Stretch="Uniform" StretchDirection="DownOnly"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                </StackPanel>
+                </Grid>
               </Grid>
             </Grid>
           </Grid>
