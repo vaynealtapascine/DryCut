@@ -6,6 +6,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Net.Http
 
 $ModelUri = 'https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx?download=true'
 $ExpectedBytes = 44436071L
@@ -27,7 +28,7 @@ try {
         $client.DefaultRequestHeaders.UserAgent.ParseAdd('BackgroundCut-release-builder/1.0')
         $response = $client.GetAsync($ModelUri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
         try {
-            $response.EnsureSuccessStatusCode()
+            $null = $response.EnsureSuccessStatusCode()
             $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
             $file = [IO.File]::Create($temp)
             try { $stream.CopyTo($file) } finally { $file.Dispose(); $stream.Dispose() }
