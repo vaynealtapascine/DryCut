@@ -84,6 +84,16 @@ public sealed class JsonSettingsStore : ISettingsStore
     public async Task SaveUiSettingsAsync(UiSettings settings, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
+
+        // A caller that saves Mode/PanelWidth/AlwaysOnTop without knowing about Theme (MainViewModel)
+        // leaves Theme null. Writing that through as-is would erase whatever theme the Settings
+        // window last saved, so merge with what's already on disk instead of overwriting it.
+        if (settings.Theme is null)
+        {
+            var existing = await LoadUiSettingsAsync(cancellationToken).ConfigureAwait(false);
+            settings = settings with { Theme = existing.Theme };
+        }
+
         var directory = Path.GetDirectoryName(Path.GetFullPath(_uiPath))!;
         Directory.CreateDirectory(directory);
         var temporary = _uiPath + ".tmp-" + Guid.NewGuid().ToString("N");

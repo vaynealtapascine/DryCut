@@ -1,4 +1,5 @@
 using System.IO;
+using Avalonia.Styling;
 using BackgroundCut.Application.Ports;
 using BackgroundCut.Desktop.Ui;
 using BackgroundCut.Domain.Models;
@@ -14,6 +15,8 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly FileModelCatalog _catalog;
     private readonly ModelDownloader _downloader;
     private readonly Action _close;
+    private readonly UiSettings _initialUi;
+    private readonly ThemeVariant _originalVariant;
     private ExportPolicy _policy;
     private string _folder;
     private bool _explorerEnabled;
@@ -21,6 +24,8 @@ public sealed class SettingsViewModel : ObservableObject
     private bool _isDownloading;
     private double _downloadProgress;
     private string _modelStatus = "";
+    private ThemeMode _theme;
+    private bool _themeCommitted;
 
     public SettingsViewModel(
         ISettingsStore store,
@@ -29,7 +34,8 @@ public sealed class SettingsViewModel : ObservableObject
         FileModelCatalog catalog,
         ModelDownloader downloader,
         Action close,
-        ExportSettings initial)
+        ExportSettings initial,
+        UiSettings initialUi)
     {
         _store = store;
         _dialogs = dialogs;
@@ -39,6 +45,12 @@ public sealed class SettingsViewModel : ObservableObject
         _close = close;
         _policy = initial.Policy;
         _folder = initial.DefaultFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "BackgroundCut");
+        _initialUi = initialUi;
+        _theme = initialUi.EffectiveTheme;
+        // The variant active right now is whatever startup (or a previous Settings session)
+        // already applied — that's what Cancel (or closing the window any other way without
+        // saving) must restore, not necessarily _theme's mapped variant.
+        _originalVariant = Avalonia.Application.Current?.RequestedThemeVariant ?? ThemeVariant.Dark;
 
         BrowseCommand = new AsyncCommand(_ => BrowseAsync());
         SaveCommand = new AsyncCommand(_ => SaveAsync(), _ => !IsDownloading);
@@ -79,6 +91,35 @@ public sealed class SettingsViewModel : ObservableObject
         ExportPolicy.SourceFolder => "Keep each result beside its original image.",
         ExportPolicy.AskEveryTime => "Choose a location each time you save.",
         _ => "Save automatically to your BackgroundCut folder."
+    };
+
+    public ThemeMode Theme
+    {
+        get => _theme;
+        set
+        {
+            if (Set(ref _theme, value))
+            {
+                Raise(nameof(ThemeDescription));
+                // Live preview: apply immediately so the user can see the result while this
+                // window is still open. Save persists it; Cancel (or closing any other way
+                // without saving) restores _originalVariant instead.
+                if (Avalonia.Application.Current is { } app) app.RequestedThemeVariant = ToVariant(value);
+            }
+        }
+    }
+
+    public static IReadOnlyList<Choice<ThemeMode>> ThemeChoices { get; } = new[]
+    {
+        new Choice<ThemeMode>(ThemeMode.System, "Match system"),
+        new Choice<ThemeMode>(ThemeMode.Light, "Light"),
+        new Choice<ThemeMode>(ThemeMode.Dark, "Dark")
+    };
+    public string ThemeDescription => Theme switch
+    {
+        ThemeMode.Light => "Always use the light theme.",
+        ThemeMode.System => "Follow your operating system's light or dark setting.",
+        _ => "Always use the dark theme."
     };
 
     public AsyncCommand BrowseCommand { get; }
@@ -130,8 +171,38 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         }
 
+        try
+        {
+            // Preserve Mode/PanelWidth/AlwaysOnTop as loaded; only Theme is this window's to change.
+            await _store.SaveUiSettingsAsync(_initialUi with { Theme = Theme }, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            ModelStatus = $"Settings were saved, but your theme preference could not be saved: {ex.Message}";
+            return;
+        }
+
+        _themeCommitted = true;
         _close();
     }
+
+    /// <summary>
+    /// Restores the theme variant that was active when this window opened, unless Save already
+    /// committed a new one. Called from the window's Closing event so Cancel, the titlebar close
+    /// button, and Alt+F4 all undo the live preview the same way.
+    /// </summary>
+    public void RestoreThemeIfNotCommitted()
+    {
+        if (_themeCommitted) return;
+        if (Avalonia.Application.Current is { } app) app.RequestedThemeVariant = _originalVariant;
+    }
+
+    private static ThemeVariant ToVariant(ThemeMode mode) => mode switch
+    {
+        ThemeMode.Light => ThemeVariant.Light,
+        ThemeMode.Dark => ThemeVariant.Dark,
+        _ => ThemeVariant.Default
+    };
 
     private async Task DownloadModelAsync()
     {

@@ -27,6 +27,13 @@ public enum ViewMode
     Panel
 }
 
+public enum ThemeMode
+{
+    System,
+    Light,
+    Dark
+}
+
 public sealed record ModelDescriptor(
     ModelKind Kind,
     string Id,
@@ -46,12 +53,21 @@ public sealed record ExportSettings(
     public static ExportSettings Default { get; } = new();
 }
 
+// Theme is nullable rather than defaulting straight to ThemeMode.Dark: MainViewModel's
+// SaveUiSettingsAsync round-trips only Mode/PanelWidth/AlwaysOnTop (it has no notion of theme),
+// so a non-nullable field would get silently reset to its default every time the user resizes
+// the panel or toggles always-on-top, clobbering whatever they picked in Settings. Null means
+// "this writer didn't touch theme" and JsonSettingsStore.SaveUiSettingsAsync merges it with
+// whatever is already on disk instead of overwriting it. Read EffectiveTheme, not Theme, for the
+// actual preference (defaults to Dark, the deliberate product default for a first run).
 public sealed record UiSettings(
     ViewMode Mode = ViewMode.Full,
     double PanelWidth = 380,
-    bool AlwaysOnTop = false)
+    bool AlwaysOnTop = false,
+    ThemeMode? Theme = null)
 {
     public static UiSettings Default { get; } = new();
+    public ThemeMode EffectiveTheme => Theme ?? ThemeMode.Dark;
 }
 
 public sealed record ProcessingOptions(

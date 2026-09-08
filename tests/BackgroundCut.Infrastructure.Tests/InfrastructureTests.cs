@@ -103,6 +103,68 @@ public sealed class InfrastructureTests
     }
 
     [Fact]
+    public void UiSettingsDefaultsToDarkThemeWithNoStoredPreference()
+    {
+        Assert.Null(UiSettings.Default.Theme);
+        Assert.Equal(ThemeMode.Dark, UiSettings.Default.EffectiveTheme);
+    }
+
+    [Theory]
+    [InlineData(ThemeMode.System)]
+    [InlineData(ThemeMode.Light)]
+    [InlineData(ThemeMode.Dark)]
+    public async Task JsonUiSettingsRoundTripsEachThemeMode(ThemeMode mode)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "backgroundcut-tests", Guid.NewGuid().ToString("N"), "settings.json");
+        var store = new JsonSettingsStore(path);
+        var expected = new UiSettings(Theme: mode);
+
+        await store.SaveUiSettingsAsync(expected, CancellationToken.None);
+
+        var loaded = await store.LoadUiSettingsAsync(CancellationToken.None);
+        Assert.Equal(mode, loaded.Theme);
+        Assert.Equal(mode, loaded.EffectiveTheme);
+    }
+
+    [Fact]
+    public async Task JsonUiSettingsWithNoThemeFieldLoadsAsDark()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "backgroundcut-tests", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "settings.json");
+        Directory.CreateDirectory(directory);
+        // Mirrors a ui-settings.json written before the theme field existed.
+        await File.WriteAllTextAsync(Path.Combine(directory, "ui-settings.json"), "{\"mode\":\"Panel\",\"panelWidth\":420,\"alwaysOnTop\":true}");
+        var store = new JsonSettingsStore(path);
+
+        var loaded = await store.LoadUiSettingsAsync(CancellationToken.None);
+
+        Assert.Null(loaded.Theme);
+        Assert.Equal(ThemeMode.Dark, loaded.EffectiveTheme);
+        Assert.Equal(ViewMode.Panel, loaded.Mode);
+        Assert.Equal(420, loaded.PanelWidth);
+        Assert.True(loaded.AlwaysOnTop);
+    }
+
+    [Fact]
+    public async Task SavingUiSettingsWithoutThemePreservesWhateverThemeWasAlreadyPersisted()
+    {
+        // Simulates MainViewModel.SaveUiSettingsAsync, which constructs UiSettings from only
+        // Mode/PanelWidth/AlwaysOnTop and knows nothing about Theme (Theme is left null). That
+        // save must not clobber a theme the Settings window already persisted.
+        var path = Path.Combine(Path.GetTempPath(), "backgroundcut-tests", Guid.NewGuid().ToString("N"), "settings.json");
+        var store = new JsonSettingsStore(path);
+        await store.SaveUiSettingsAsync(new UiSettings(Theme: ThemeMode.Light), CancellationToken.None);
+
+        await store.SaveUiSettingsAsync(new UiSettings(ViewMode.Panel, 500, AlwaysOnTop: true), CancellationToken.None);
+
+        var loaded = await store.LoadUiSettingsAsync(CancellationToken.None);
+        Assert.Equal(ThemeMode.Light, loaded.Theme);
+        Assert.Equal(ViewMode.Panel, loaded.Mode);
+        Assert.Equal(500, loaded.PanelWidth);
+        Assert.True(loaded.AlwaysOnTop);
+    }
+
+    [Fact]
     public async Task PngExportAddsCollisionSuffixAndKeepsAlpha()
     {
         var folder = Path.Combine(Path.GetTempPath(), "backgroundcut-tests", Guid.NewGuid().ToString("N"));

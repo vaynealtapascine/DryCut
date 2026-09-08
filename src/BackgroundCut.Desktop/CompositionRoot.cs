@@ -345,6 +345,7 @@ internal sealed class DesktopServices : Ui.IDesktopServices
     {
         var owner = _ownerProvider() ?? throw new InvalidOperationException("The main window is not available.");
         var initial = await _settings.LoadExportSettingsAsync(CancellationToken.None);
+        var initialUi = await _settings.LoadUiSettingsAsync(CancellationToken.None);
         var dialog = new SettingsWindow();
         var viewModel = new SettingsViewModel(
             _settings,
@@ -353,7 +354,8 @@ internal sealed class DesktopServices : Ui.IDesktopServices
             _catalog,
             _downloader,
             dialog.Close,
-            initial);
+            initial,
+            initialUi);
         dialog.DataContext = viewModel;
         await viewModel.InitializeAsync();
         await dialog.ShowDialog(owner);

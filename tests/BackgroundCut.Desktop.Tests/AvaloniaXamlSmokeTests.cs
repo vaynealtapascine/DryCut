@@ -94,6 +94,7 @@ public sealed class AvaloniaXamlSmokeTests
             var catalog = new FileModelCatalog(modelDirectory.FullName);
             var downloader = new ModelDownloader(new HttpClient());
             var initial = await settingsStore.LoadExportSettingsAsync(CancellationToken.None);
+            var initialUi = await settingsStore.LoadUiSettingsAsync(CancellationToken.None);
             var vm = new SettingsViewModel(
                 settingsStore,
                 new FakeFileDialogService(),
@@ -101,7 +102,8 @@ public sealed class AvaloniaXamlSmokeTests
                 catalog,
                 downloader,
                 close: () => { },
-                initial);
+                initial,
+                initialUi);
             await vm.InitializeAsync();
 
             var errors = new List<string>();

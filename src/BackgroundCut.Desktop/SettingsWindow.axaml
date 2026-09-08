@@ -15,6 +15,20 @@
 
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
       <StackPanel>
+        <TextBlock Text="Appearance" FontWeight="SemiBold" />
+        <ComboBox ItemsSource="{Binding ThemeChoices}"
+                  SelectedValue="{Binding Theme}"
+                  SelectedValueBinding="{Binding Value}"
+                  Margin="0,8,0,4">
+          <ComboBox.ItemTemplate>
+            <DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Text="{Binding ThemeDescription}" Foreground="{DynamicResource MutedBrush}" />
+        <TextBlock Text="&quot;Match system&quot; follows your OS's light/dark setting and switches automatically when it changes."
+                   FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0" />
+
+        <Separator Margin="0,24" />
         <TextBlock Text="When I save" FontWeight="SemiBold" />
         <ComboBox ItemsSource="{Binding PolicyChoices}"
                   SelectedValue="{Binding Policy}"

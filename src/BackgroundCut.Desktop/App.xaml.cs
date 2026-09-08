@@ -4,9 +4,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using BackgroundCut.Application.UseCases;
 using BackgroundCut.Desktop.Ui;
+using BackgroundCut.Domain.Models;
 using BackgroundCut.Infrastructure;
 
 namespace BackgroundCut.Desktop;
@@ -40,6 +42,7 @@ public partial class App : Avalonia.Application, IDisposable
         }
 
         var settings = new JsonSettingsStore();
+        ApplyPersistedTheme(settings);
         var bundledModels = Path.Combine(AppContext.BaseDirectory, "models");
         var userModels = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -79,6 +82,32 @@ public partial class App : Avalonia.Application, IDisposable
         if (requested.Length > 0) _viewModel.DropPaths(requested);
         base.OnFrameworkInitializationCompleted();
     }
+
+    // Applied synchronously (not fire-and-forget) so the persisted preference is in place before
+    // MainWindow is constructed below — otherwise the window would flash the App.axaml compiled
+    // default (Dark) for a frame before switching. JsonSettingsStore's async methods all use
+    // ConfigureAwait(false) internally, so blocking on them here, before the dispatcher loop has
+    // started, does not risk a deadlock.
+    private static void ApplyPersistedTheme(JsonSettingsStore settings)
+    {
+        try
+        {
+            var uiSettings = settings.LoadUiSettingsAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Current!.RequestedThemeVariant = ToThemeVariant(uiSettings.EffectiveTheme);
+        }
+        catch
+        {
+            // Theme preference is supplementary; the compiled App.axaml default (Dark) keeps the
+            // app usable and matches the deliberate product default for a first run anyway.
+        }
+    }
+
+    private static ThemeVariant ToThemeVariant(ThemeMode mode) => mode switch
+    {
+        ThemeMode.Light => ThemeVariant.Light,
+        ThemeMode.Dark => ThemeVariant.Dark,
+        _ => ThemeVariant.Default
+    };
 
     private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e) => Dispose();
 
