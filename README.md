@@ -81,8 +81,6 @@ Architecture and implementation decisions are in `docs/ARCHITECTURE.md` and `doc
 - BiRefNet ONNX is distributed by `onnx-community/BiRefNet-ONNX` under MIT metadata and is downloaded only when requested.
 - Runtime dependency notices are generated into `THIRD-PARTY-NOTICES.txt` during release packaging.
 
-DryCut's source is MIT licensed. See `LICENSE`.
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
