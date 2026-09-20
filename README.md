@@ -2,7 +2,7 @@
 
 # DryCut
 
-DryCut is a private, local desktop app for removing image backgrounds on Windows, macOS, and Linux. Drop in one photo or a batch, review the transparent results, then copy or save them as PNGs.
+Private, local background removal for Windows, macOS and Linux.
 
 ## Highlights
 
@@ -82,3 +82,7 @@ Architecture and implementation decisions are in `docs/ARCHITECTURE.md` and `doc
 - Runtime dependency notices are generated into `THIRD-PARTY-NOTICES.txt` during release packaging.
 
 DryCut's source is MIT licensed. See `LICENSE`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
